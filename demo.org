@@ -1,0 +1,28 @@
+* tools
+** haproxy
+** nodejs
+** msql
+** redis
+** elasticsearch
+** dnsmasq
+ sudo apt-get install dnsmasq
+ cat /etc/dnsmasq.conf
+ sudo service dnsmasq status
+ sudo vi /etc/dnsmasq.conf 
+ sudo service dnsmasq start
+ sudo service dnsmasq status
+ cat /etc/dnsmasq.conf |grep address
+ sudo vi /etc/dnsmasq.conf 
+ sudo service dnsmasq restart
+
+*** To add wildcard local domain:
+/etc/dnspasq.conf:
+# Add domains which you want to force to an IP address here.
+# The example below send any host in double-click.net to a local
+# web-server.
+address=/dokku.me/10.0.0.2
+
+** Docker?
+https://github.com/apocas/dockerode
+
+Maybe have mysql, reids and elasticsearch in docker containter?

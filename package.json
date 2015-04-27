@@ -1,0 +1,27 @@
+{
+  "name": "demo",
+  "description": "Simple node script for demo-ing dc apps",
+  "keywords": [],
+  "author": {
+    "name": "Michiel van Oosten",
+    "email": "mail@axion5.net",
+    "url": "http://www.axion5.net/"
+  },
+  "bin": {
+    "demo": "./src/command.js"
+  },
+  "engines": {
+    "node": ">= 0.6.x"
+  },
+  "dependencies": {
+    "fs-extra": "0.18.x",
+    "colors": "*",
+    "shelljs": "0.4.x",
+    "dougs_vow": "*",
+    "node-haproxy": "*"
+  },
+  "devDependencies": {},
+  "private": false,
+  "scripts": {},
+  "version": "0.1.12"
+}
