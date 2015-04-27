@@ -26,3 +26,6 @@ address=/dokku.me/10.0.0.2
 https://github.com/apocas/dockerode
 
 Maybe have mysql, reids and elasticsearch in docker containter?
+
+** bash autocomplete
+of repo and branch names
