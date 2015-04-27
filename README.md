@@ -1,6 +1,8 @@
 demo
 --------
 
+Not working yet!!
+
 Deploy a branch of web app to a server with a git push and view the app at branch.somedomain.com
 
 Demo is a command line utility to be used together with
