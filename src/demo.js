@@ -9,6 +9,7 @@ var shell = require('shelljs');
 var fs = require('fs-extra');
 
 var REPOS = Path.join(process.env.HOME, 'repos');
+console.log(REPOS);
 
 fs.ensureDirSync(REPOS);
 var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
@@ -160,7 +161,7 @@ function create(repo) {
         var postReceive = fs.readFileSync(POSTRECEIVE, { encoding: 'utf8' });
         postReceive = postReceive.replace('repo', repo);
         fs.writeFileSync(Path.join(repoPath, 'hooks/post-receive'), postReceive);
-        console.log('Created repo  ' + repo);
+        console.log('Created repo ' + repo);
       } catch(e) {
         console.log(e);
       }
@@ -199,30 +200,26 @@ function stop(repo, branch) {
 
 }
 
-function _do(args) {
-  if (!args || !args.length) {
-    error(args, 'Do what?');
-    return;
-  }
+function _do(operation, args) {
   var repo = args[0];
-  var branch = args[2] ? args[1] : null;
-  var operation = branch ? args[2] : args[1];
+  var branch = args[1];
   
   if (!repo) {
     error(args, 'Name of repo missing');
     return;
   }
+
+  if (!repos[repo]) {
+    error(args, 'Unknown repo');
+    return;
+  }
+
   if (!branch) {
     operation = operations.internal.repos[operation];
     if (!operation) {
       error(args, 'Unknown operation for repo');
     }
     else operation(repo);
-    return;
-  }
-
-  if (!repos[repo]) {
-    error(args, 'Unknown repo');
     return;
   }
 
@@ -238,24 +235,43 @@ function _do(args) {
 
 function error(args, msg) {
   if (msg) console.log(msg);
-  console.log("Usage:");
-  //TODO print usage
+  var txt = [
+    "create <repo>                : create a bare git repo on the server",
+    "delete <repo> [<branch]      : delete repo or just a branch",
+    "list [<repo>]                : list all branches (or just for repo)",
+    "checkout <repo> <branch>     : access branch at repo-branch.domain.com",
+    "start <repo> <branch>        : start web server for branch",
+    "stop <repo> <branch>         : stop web server for branch",
+    "online <repo> <branch>       : take web server online for branch",
+    "offline <repo> <branch>      : take web server offline for branch",
+    "offline <repo> <branch>      : take web server offline for branch",
+    "info <repo> <branch>         : status and url for branch",
+    "exec <repo> <branch>         : execute command in branch folder",
+    "init                         : ",
+    "\nTo add a remote to a repo:",
+    "git remote add demo user@demo.com:repos/myrepo"
+  ];
+  console.log(txt.join('\n'));
 }
 
 var operations = {
   public: {
-    do: _do,
+    create: function(args) {
+      create(args[0]);
+    },
     checkout: function(args) {
-      _do(args.concat('checkout'));
+      _do('checkout', args);
     },
     list: function(args) {
-      list();
+      if (!args.length) list();
+      else _do('list', args);
     },
     init: init
   },
   internal: {
     repos: {
-      list: list
+      list: list,
+      create: create
     },
     branches: {
       list: list,
