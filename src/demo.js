@@ -129,8 +129,8 @@ function checkout(repo, branch) {
   // console.log(gitOperation);
   exec(gitOperation).when(
     function() {
-      var pid = fs.readFileSync(Path.join(REPOS, repo, 'pid'));
-      if (!pid) start(repo, branch);
+      // var pid = fs.readFileSync(Path.join(REPOS, repo, 'pid'));
+      // if (!pid) start(repo, branch);
       console.log('Done');
     },
     function(error) {
@@ -160,12 +160,21 @@ function create(repo) {
       try {
         var postReceive = fs.readFileSync(POSTRECEIVE, { encoding: 'utf8' });
         postReceive = postReceive.replace('repo', repo);
-        fs.writeFileSync(Path.join(repoPath, 'hooks/post-receive'), postReceive);
+        var postReceivePath = Path.join(repoPath, 'hooks/post-receive');
+        fs.writeFileSync(postReceivePath, postReceive);
         console.log('Created repo ' + repo);
+        return exec('chmod +x ' + postReceivePath);
       } catch(e) {
-        console.log(e);
+        return VOW.broken(e);
       }
-    });
+    }).when(
+      function(data) {
+        console.log(data);
+      },
+      function(error) {
+        console.log(error);
+      }
+    );
 
 }
 
@@ -245,11 +254,11 @@ function error(args, msg) {
     "online <repo> <branch>       : take web server online for branch",
     "offline <repo> <branch>      : take web server offline for branch",
     "offline <repo> <branch>      : take web server offline for branch",
-    "info <repo> <branch>         : status and url for branch",
+    "info <repo> <branch>         : status and url foreckoubranch",
     "exec <repo> <branch>         : execute command in branch folder",
     "init                         : ",
     "\nTo add a remote to a repo:",
-    "git remote add demo user@demo.com:repos/myrepo"
+    "git remote add demo user@demo.com:repos/myrepo/bare"
   ];
   console.log(txt.join('\n'));
 }

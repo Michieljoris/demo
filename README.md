@@ -48,7 +48,7 @@ Then:
 
 In a some github repo of a web app named myrepo:
 
-    git remote add demo vagrant@demo.local:repos/myrepo
+    git remote add demo vagrant@demo.local:repos/myrepo/bare
     demo create myrepo #creates bare git repo on server
 
 Then in the repo:
