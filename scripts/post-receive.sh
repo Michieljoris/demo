@@ -2,5 +2,5 @@
 
 while read oldrev newrev ref
 do
-    exec demo 'repo' $ref 'checkout'
+    exec demo checkout repo $ref
 done

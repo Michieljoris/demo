@@ -9,7 +9,6 @@ var shell = require('shelljs');
 var fs = require('fs-extra');
 
 var REPOS = Path.join(process.env.HOME, 'repos');
-console.log(REPOS);
 
 fs.ensureDirSync(REPOS);
 var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
@@ -28,7 +27,7 @@ var repos = (function() {
   });
   return result;
 }());
-
+console.log('Repos: ', repos);
 
 var startCommands = {
   "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},
@@ -144,10 +143,6 @@ function list(repo, branch) {
 
 }
 
-function _delete(repo, branch) { //delete is keyword
-
-}
-
 function create(repo) {
   if (repos[repo]) {
     error(null, 'Repo already exists');
@@ -169,7 +164,7 @@ function create(repo) {
       }
     }).when(
       function(data) {
-        console.log(data);
+        if (data) console.log(data);
       },
       function(error) {
         console.log(error);
@@ -177,6 +172,37 @@ function create(repo) {
     );
 
 }
+
+function deleteRepo(repo) { 
+  var repoPath = Path.join(REPOS, repo);
+  exec('rm -rf ' + repoPath)
+    .when(
+      function(data) {
+        if (data) console.log(data);
+      },
+      function(error) {
+        console.log(error);
+      }
+    );
+  //TODO stop servers and remove backends from haproxy
+
+}
+
+function deleteBranch(repo, branch) { 
+  var branchPath = Path.join(REPOS, repo, 'branches', branch);
+  exec('rm -rf ' + branchPath)
+    .when(
+      function(data) {
+        if (data) console.log(data);
+      },
+      function(error) {
+        console.log(error);
+      }
+    );
+
+  //TODO stop server and remove backend from haproxy
+}
+
 
 
 function online(repo, branch) {
@@ -275,16 +301,21 @@ var operations = {
       if (!args.length) list();
       else _do('list', args);
     },
+    delete: function(args) {
+      _do('delete', args);
+    },
     init: init
   },
   internal: {
     repos: {
       list: list,
-      create: create
+      create: create,
+      delete: deleteRepo
     },
     branches: {
       list: list,
-      checkout: checkout
+      checkout: checkout,
+      delete: deleteBranch
     }
   }
 };
