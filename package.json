@@ -8,7 +8,7 @@
     "url": "http://www.axion5.net/"
   },
   "bin": {
-    "main": "./src/command.js"
+    "demo": "./src/command.js"
   },
   "engines": {
     "node": ">= 0.6.x"
@@ -23,5 +23,5 @@
   "devDependencies": {},
   "private": false,
   "scripts": {},
-  "version": "0.1.13"
+  "version": "0.1.14"
 }

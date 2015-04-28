@@ -4,28 +4,30 @@ var haproxy = require('node-haproxy/src/ipc-client');
 var spawn = require('child_process').spawn;
 var util = require('util');
 
-
 var shell = require('shelljs');
 
 var fs = require('fs-extra');
 
 var REPOS = Path.join(process.env.HOME, 'repos');
-fs.ensureDirSync(REPOS);
 
+fs.ensureDirSync(REPOS);
 var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
 
 var repos = (function() {
   var repos = fs.readdirSync(REPOS);
   var result = {};
   repos.forEach(function(repo) {
-    var dirs = fs.readdirSync(Path.join(REPOS, repo));
-    var branches = [];
-    if (dirs.indexOf('branches') !== -1) 
-      branches = fs.readdirSync(Path.join(REPOS, repo, 'branches'));
-    result[repo] = branches;
+    try {
+      var dirs = fs.readdirSync(Path.join(REPOS, repo));
+      var branches = [];
+      if (dirs.indexOf('branches') !== -1) 
+        branches = fs.readdirSync(Path.join(REPOS, repo, 'branches'));
+      result[repo] = branches;
+    } catch (e) {}
   });
   return result;
 }());
+
 
 var startCommands = {
   "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},

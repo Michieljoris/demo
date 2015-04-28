@@ -76,7 +76,7 @@ module.exports = {
   // -g we will be able to call this new command demo from anywhere on
   // our system.
   "bin": {
-    "main": "./src/command.js"
+    "demo": "./src/command.js"
   },
     
   // Essentially, which Node.js platforms do we support? These are glob

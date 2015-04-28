@@ -33,9 +33,13 @@ mysql -uroot -p$PASSWORD <<< "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFI
 sudo apt-get install make
 wget http://download.redis.io/redis-stable.tar.gz
 tar xvzf redis-stable.tar.gz
+rm  redis-stable.tar.gz
 cd redis-stable
 make
 sudo make install
+cd ..
+rm -rf redis-stable
+
 # Install the service using defaults
 echo -e '' | sudo ./utils/install_server.sh
 
@@ -63,6 +67,8 @@ sudo npm install -g node-haproxy
 git clone git@github.com:Michieljoris/demo.git
 cd demo
 sudo npm install -g
+cd ..
+rm -rf demo
 
 
 #Haproxy ----------
