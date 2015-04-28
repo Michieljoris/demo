@@ -266,27 +266,27 @@ function _do(operation, args) {
   operation(repo, branch);
 }
 
+var txt = [
+  "create <repo>                : create a bare git repo on the server",
+  "delete <repo> [<branch]      : delete repo or just a branch",
+  "list [<repo>]                : list all branches (or just for repo)",
+  "checkout <repo> <branch>     : access branch at repo-branch.domain.com",
+  "start <repo> <branch>        : start web server for branch",
+  "stop <repo> <branch>         : stop web server for branch",
+  "online <repo> <branch>       : take web server online for branch",
+  "offline <repo> <branch>      : take web server offline for branch",
+  "offline <repo> <branch>      : take web server offline for branch",
+  "info <repo> <branch>         : status and url foreckoubranch",
+  "exec <repo> <branch>         : execute command in branch folder",
+  "init                         : ",
+  "\nTo add a remote to a repo:",
+  "git remote add demo user@demo.com:repos/myrepo/bare"
+];
 
 
 function error(args, msg) {
   if (msg) console.log(msg);
-  var txt = [
-    "create <repo>                : create a bare git repo on the server",
-    "delete <repo> [<branch]      : delete repo or just a branch",
-    "list [<repo>]                : list all branches (or just for repo)",
-    "checkout <repo> <branch>     : access branch at repo-branch.domain.com",
-    "start <repo> <branch>        : start web server for branch",
-    "stop <repo> <branch>         : stop web server for branch",
-    "online <repo> <branch>       : take web server online for branch",
-    "offline <repo> <branch>      : take web server offline for branch",
-    "offline <repo> <branch>      : take web server offline for branch",
-    "info <repo> <branch>         : status and url foreckoubranch",
-    "exec <repo> <branch>         : execute command in branch folder",
-    "init                         : ",
-    "\nTo add a remote to a repo:",
-    "git remote add demo user@demo.com:repos/myrepo/bare"
-  ];
-  console.log(txt.join('\n'));
+  else console.log(txt.join('\n'));
 }
 
 var operations = {
