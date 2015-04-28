@@ -58,3 +58,7 @@ sudo apt-get install -y rinetd
 # Rails ----------
 sudo apt-get install ruby-dev
 sudo gem install compass
+
+
+# Ember-cli ----------
+npm install -g ember-cli

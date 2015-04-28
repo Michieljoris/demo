@@ -4,8 +4,8 @@
 BOX_NAME = ENV["BOX_NAME"] || "trusty"
 BOX_URI = ENV["BOX_URI"] || "https://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
 BOX_MEMORY = ENV["BOX_MEMORY"] || "1024"
-DOKKU_DOMAIN = ENV["DOKKU_DOMAIN"] || "demo.local"
-DOKKU_IP = ENV["DOKKU_IP"] || "10.0.0.2"
+DEMO_DOMAIN = ENV["DEMO_DOMAIN"] || "demo.local"
+DEMO_IP = ENV["DEMO_IP"] || "10.0.0.2"
 
 
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
@@ -21,10 +21,10 @@ Vagrant.configure(2) do |config|
   # boxes at https://atlas.hashicorp.com/search.
   config.vm.box = BOX_NAME
   config.vm.box_url = BOX_URI
-  config.vm.synced_folder File.dirname(__FILE__), "/srv/dokku-alt"
+  # config.vm.synced_folder File.dirname(__FILE__), "/srv/dokku-alt"
   config.vm.network :forwarded_port, guest: 80, host: 8080
-  config.vm.hostname = "#{DOKKU_DOMAIN}"
-  config.vm.network :private_network, ip: DOKKU_IP
+  config.vm.hostname = "#{DEMO_DOMAIN}"
+  config.vm.network :private_network, ip: DEMO_IP
 
   config.vm.provider :virtualbox do |vb|
     vb.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]

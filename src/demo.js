@@ -4,10 +4,30 @@ var haproxy = require('node-haproxy/src/ipc-client');
 var spawn = require('child_process').spawn;
 
 // haproxy('getFrontends', [], function(error, result) {
-//   console.log(error, result);
+//   console.log("Frontends\n", result);
+//   haproxy('getBackends', [], function(error, result) {
+//     console.log("Backends\n", result);
+//     haproxy.close();
+//   });
 // });
 
+haproxy('getFrontends', [])
+  .when(
+    function(result) {
+      console.log("Frontends\n", result);
+      return haproxy('getBackends', []);
+    })
+  .when(
+    function(result) {
+      console.log("Backends\n", result);
+      haproxy.close();
+    },
+    function(error) {
+      console.log("Error\n", error);
+      haproxy.close();
+    }
 
+  );
 
 var shell = require('shelljs');
 
@@ -67,6 +87,10 @@ function exec(operation) {
     else vow.keep(output);
   });
   return vow.promise;
+}
+
+function init(args) {
+  console.log('in init', args);
 }
 
 function checkout(repo, branch) {
@@ -212,7 +236,8 @@ var operations = {
     },
     list: function(args) {
       list();
-    }
+    },
+    init: init
   },
   internal: {
     repos: {
@@ -230,6 +255,6 @@ module.exports = function(operation, args) {
   operation(args);
 };
 
-module.exports('checkout', ['bla','a/b/c/branch']);
+// module.exports('checkout', ['bla','a/b/c/branch']);
 
 

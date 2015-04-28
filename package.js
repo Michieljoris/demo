@@ -72,11 +72,11 @@ module.exports = {
   // "main": "commit.js",
     
 
-  // If we have installed this package globally using npm install http-server
-  // -g we will be able to call this new command http-server from anywhere on
+  // If we have installed this package globally using npm install demo
+  // -g we will be able to call this new command demo from anywhere on
   // our system.
   "bin": {
-    "demo": "./src/command.js"
+    "main": "./src/command.js"
   },
     
   // Essentially, which Node.js platforms do we support? These are glob
