@@ -1,13 +1,8 @@
 sudo add-apt-repository ppa:vbernat/haproxy-1.5
-
-#Elasticsearch ----------
 wget -qO - https://packages.elasticsearch.org/GPG-KEY-elasticsearch | sudo apt-key add -
 echo "deb http://packages.elasticsearch.org/elasticsearch/1.5/debian stable main" | sudo tee -a /etc/apt/sources.list
-sudo apt-get update && sudo apt-get install elasticsearch
-sudo update-rc.d elasticsearch defaults 95 10
-
-#Haproxy ----------
-apt-get install -y haproxy
+sudo apt-get update 
+sudo apt-get install default-jre
 
 #Mysql ----------
 PASSWORD=''
@@ -44,6 +39,10 @@ sudo make install
 # Install the service using defaults
 echo -e '' | sudo ./utils/install_server.sh
 
+#Elasticsearch ----------
+sudo apt-get install elasticsearch
+sudo update-rc.d elasticsearch defaults 95 10
+
 #Node ----------
 sudo apt-get -y install nodejs npm
 sudo ln -s /usr/bin/nodejs /usr/bin/node
@@ -53,12 +52,18 @@ sudo npm install -g bower
 # https://www.debian-administration.org/article/601/Easily_forwarding_arbitrary_TCP_connections_with_rinetd
 sudo apt-get install -y rinetd
 
-
-
 # Rails ----------
 sudo apt-get install ruby-dev
 sudo gem install compass
 
 
 # Ember-cli ----------
-npm install -g ember-cli
+sudo npm install -g ember-cli
+sudo npm install -g node-haproxy
+git clone git@github.com:Michieljoris/demo.git
+cd demo
+sudo npm install -g
+
+
+#Haproxy ----------
+# apt-get install -y haproxy

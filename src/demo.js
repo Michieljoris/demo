@@ -2,32 +2,8 @@ var VOW = require('dougs_vow');
 var Path = require('path');
 var haproxy = require('node-haproxy/src/ipc-client');
 var spawn = require('child_process').spawn;
+var util = require('util');
 
-// haproxy('getFrontends', [], function(error, result) {
-//   console.log("Frontends\n", result);
-//   haproxy('getBackends', [], function(error, result) {
-//     console.log("Backends\n", result);
-//     haproxy.close();
-//   });
-// });
-
-haproxy('getFrontends', [])
-  .when(
-    function(result) {
-      console.log("Frontends\n", result);
-      return haproxy('getBackends', []);
-    })
-  .when(
-    function(result) {
-      console.log("Backends\n", result);
-      haproxy.close();
-    },
-    function(error) {
-      console.log("Error\n", error);
-      haproxy.close();
-    }
-
-  );
 
 var shell = require('shelljs');
 
@@ -55,6 +31,42 @@ var startCommands = {
   "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},
   "rails": { command: 'rails', args: ['s', '-p']}
 };
+
+var domain = '.local.me';
+
+function createHaproxyRule(backend) {
+  return {
+    "type": "header"
+    , "header": "host"            // the name of the HTTP header
+    , "operation": "hdr_dom"
+    , "value": backend + domain
+    , "backend": backend // if rule is met, the backend to route the request to
+    };
+}
+
+function createFrontend(name, bind, defaultBackend, backends) {
+  return [name, {
+    "bind": bind // IP and ports to bind to, comma separated, host may be *
+    , "backend": defaultBackend      // the default backend to route to, it must be defined already
+    , "rules": backends.map(function(backend) {
+      return createHaproxyRule(backend);
+    })
+    // , "mode": "http"         // default: http, expects tcp|http
+    // , "keepalive": "default"  // default: "default", expects default|close|server-close
+
+  }];
+}
+
+function createBackend(id, domain,  port, pid) {
+  return [id, {
+    // "type" : "static" 
+    // , "name" : backend
+    // , "host" : backend + domain
+     "members" : [{ host: domain, port: port, meta: { pid: pid }}]
+  }];
+}
+
+
 
 function repoType(repo, branch) {
   var path = Path.join(REPOS, repo, 'branches', branch);
