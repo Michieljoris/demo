@@ -57,9 +57,29 @@ sudo npm install -g bower
 sudo apt-get install -y rinetd
 
 # Rails ----------
-sudo apt-get install ruby-dev
+sudo apt-get install -y ruby-dev
+echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
+echo 'eval "$(rbenv init -)"' >> ~/.bashrc
+git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
+git clone https://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/ruby-build
+. ~/.bashrc
+rbenv install 2.1.5
+rbenv global 2.1.5
+sudo gem install bundler
 sudo gem install compass
+rbenv rehash
+sudo apt-get install libmysqlclient-dev # for mysql2 gem
 
+# wget http://cache.ruby-lang.org/pub/ruby/ruby-2.1.5.tar.gz
+# tar xf ruby-2.0.0-p598.tar.gz
+# cd /ruby-2.0.0-p598 && ./configure
+# cd /ruby-2.0.0-p598 && make 
+# cd /ruby-2.0.0-p598 && make install
+
+# sudo apt-get install python-software-properties
+# sudo apt-add-repository ppa:brightbox/ruby-ng
+# sudo apt-get update
+# sudo apt-get install ruby2.1 ruby2.1-dev
 
 # Ember-cli ----------
 sudo npm install -g ember-cli

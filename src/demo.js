@@ -36,6 +36,18 @@ var startCommands = {
 
 var domain = '.local.me';
 
+function resolve (fn) {
+  fn.when(
+    function(data) {
+      if (data) console.log(data);
+      haproxy.close();
+    },
+    function(error) {
+      console.log(error);
+      aproxy.close();
+    });
+}
+
 function createHaproxyRule(backend) {
   return {
     "type": "header"
@@ -46,10 +58,10 @@ function createHaproxyRule(backend) {
     };
 }
 
-function createFrontend(name, bind, defaultBackend, backends) {
-  return [name, {
+function createFrontend(bind, backends) {
+  return ['www', {
     "bind": bind // IP and ports to bind to, comma separated, host may be *
-    , "backend": defaultBackend      // the default backend to route to, it must be defined already
+    , "backend": backends[0] || 'foo'      // the default backend to route to, it must be defined already 
     , "rules": backends.map(function(backend) {
       return createHaproxyRule(backend);
     })
@@ -59,16 +71,14 @@ function createFrontend(name, bind, defaultBackend, backends) {
   }];
 }
 
-function createBackend(id, domain,  port, pid) {
+function createBackend(id, port, pid) {
   return [id, {
     // "type" : "static" 
     // , "name" : backend
     // , "host" : backend + domain
-     "members" : [{ host: domain, port: port, meta: { pid: pid }}]
+     "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid }}]
   }];
 }
-
-
 
 function repoType(repo, branch) {
   var path = Path.join(REPOS, repo, 'branches', branch);
@@ -93,18 +103,53 @@ function startProcess(path, command) {
   return child.pid;
 }
 
- 
-function exec(operation) {
+function startServer(repo, branch, pid, demoJson) {
   var vow = VOW.make();
-  shell.exec(operation, function(status, output) {
+
+
+  return vow.promise;
+}
+
+function exec(command) {
+  var vow = VOW.make();
+  shell.exec(command, function(status, output) {
     if (status !==0) vow.break(status);
     else vow.keep(output);
   });
   return vow.promise;
 }
 
-function init(args) {
-  console.log('in init', args);
+function getPid(path) {
+  try {
+    var pid = fs.readFileSync(path);
+    return pid;
+  } catch(e) {
+    return null;
+  }
+}
+
+function getJson(path) {
+  try {
+    return fs.readJsonSync(path);
+  } catch(e) {
+    return null;
+  };
+}
+
+function getDemoJson(repo, branch) {
+  var json;
+  var repoJsonPath = Path.join(REPOS, repo, 'demo.json');
+  var branchJson = getJson(Path.join(REPOS, repo, 'branches', branch, 'demo.json'));
+  var repoJson = getJson(repoJsonPath);
+  json = branchJson || repoJson;
+  if (!repoJson && branchJson) {
+    try {
+      fs.writeJson(repoJsonPath, branchJson);
+    } catch(e) {
+      console.log("ERROR: Unable to write demo.json from branch to repo folder");
+    }
+  }
+  return json;
 }
 
 function checkout(repo, branch) {
@@ -117,30 +162,51 @@ function checkout(repo, branch) {
   branch = branch[branch.length-1];
 
   var workTree = Path.join(REPOS, repo, 'branches', branch);
-  // console.log("Worktree: ", workTree);
-  // console.log("Branch: ", branch);
-
   fs.ensureDirSync(workTree);
 
   var gitOperation = "git " + '--work-tree=' + workTree +
     " --git-dir=" + Path.join(REPOS, repo, 'bare') + " checkout " +  branch + " -f";
 
-  // console.log(gitOperation);
   exec(gitOperation).when(
     function() {
-      // var pid = fs.readFileSync(Path.join(REPOS, repo, 'pid'));
-      // if (!pid) start(repo, branch);
-      console.log('Done');
-    },
-    function(error) {
-      // console.log('Error');
-    });
+      var pid = getPid(Path.join(workTree, 'pid'));
+      var demoJson = getDemoJson(repo, branch);
+      if (!demoJson) return VOW.broken('Could not find demo.json, so don\'t know how to start the server..');
+      else return startServer(repo, branch, pid, demoJson);
+    }).when(
+      function(data) {
+        console.log('OK', data);
+      },
+      function(error) {
+        console.log('Error', error);
+      });
 }
 
 function list(repo, branch) {
   console.log('in list', repo, branch);
-  
+  haproxy('getBackends').when(
+    function(data) {
+      console.log(data);
+      haproxy.close();
+    },
+    function(error) {
+      console.log('Error');
+      haproxy.close();
+    });
+}
 
+function bind(url) {
+  if (!url) {
+    error(null, 'Url missing');
+    return;
+  }
+  var backends = [];
+  Object.keys(repos).forEach(function(repo) {
+    repos[repo].forEach(function(branch) {
+      backends.push(repo + '-' + branch);
+    });
+  });
+  resolve(haproxy('putFrontend', createFrontend(url, backends)));
 }
 
 function create(repo) {
@@ -213,8 +279,8 @@ function offline(repo, branch) {
 
 }
 
-function status(repo, branch) {
-
+function info(repo, branch) {
+  resolve(haproxy('getHaproxyConfig'));
 }
 
 
@@ -276,9 +342,9 @@ var txt = [
   "online <repo> <branch>       : take web server online for branch",
   "offline <repo> <branch>      : take web server offline for branch",
   "offline <repo> <branch>      : take web server offline for branch",
-  "info <repo> <branch>         : status and url foreckoubranch",
+  "info <repo> <branch>         : status and url for repo-branch",
   "exec <repo> <branch>         : execute command in branch folder",
-  "init                         : ",
+  "bind url                     : domain:port of frontend",
   "\nTo add a remote to a repo:",
   "git remote add demo user@demo.com:repos/myrepo/bare"
 ];
@@ -304,7 +370,10 @@ var operations = {
     delete: function(args) {
       _do('delete', args);
     },
-    init: init
+    bind: function(args) {
+      bind(args[0]);
+    },
+    info: info
   },
   internal: {
     repos: {
@@ -325,6 +394,6 @@ module.exports = function(operation, args) {
   operation(args);
 };
 
-// module.exports('checkout', ['bla','a/b/c/branch']);
+// module.exports('bind', []);
 
 
