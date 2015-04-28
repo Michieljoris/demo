@@ -1,15 +1,13 @@
 var VOW = require('dougs_vow');
+var Path = require('path');
 var haproxy = require('node-haproxy/src/ipc-client');
+var spawn = require('child_process').spawn;
 
 // haproxy('getFrontends', [], function(error, result) {
 //   console.log(error, result);
 // });
 
-var sys = require('sys');
-var exec2 = require('child_process').exec;
-var Path = require('path');
 
-function puts(error, stdout, stderr) { sys.puts(stdout) }
 
 var shell = require('shelljs');
 
@@ -18,7 +16,7 @@ var fs = require('fs-extra');
 var REPOS = Path.join(process.env.HOME, 'repos');
 fs.ensureDirSync(REPOS);
 
-var POSTRECEIVE = Path.resolve(__dirname, '..',   'scripts', 'post-receive.sh');
+var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
 
 var repos = (function() {
   var repos = fs.readdirSync(REPOS);
@@ -32,6 +30,34 @@ var repos = (function() {
   });
   return result;
 }());
+
+var startCommands = {
+  "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},
+  "rails": { command: 'rails', args: ['s', '-p']}
+};
+
+function repoType(repo, branch) {
+  var path = Path.join(REPOS, repo, 'branches', branch);
+  var type;
+  //test for config/application.rb with  require 'rails
+  //test for Brocfile with require('ember-cli/lib/broccoli/ember-app');
+  return type;
+}
+
+function startProcess(path, command) {
+  var out = fs.openSync(path + '/out.log', 'a');
+  var err = fs.openSync(path + '/out.log', 'a');
+
+  var child = spawn(command.command, command.args, {
+    cwd: path,
+    detached: true,
+    stdio: [ 'ignore', out, err ]
+  });
+  child.unref();
+
+  console.log("pid", child.pid);
+  return child.pid;
+}
 
  
 function exec(operation) {
