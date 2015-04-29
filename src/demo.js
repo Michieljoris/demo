@@ -3,38 +3,42 @@ var Path = require('path');
 var haproxy = require('node-haproxy/src/ipc-client');
 var spawn = require('child_process').spawn;
 var util = require('util');
-
 var shell = require('shelljs');
-
 var fs = require('fs-extra');
 
+var utils = require('./utils');
+
+var domain = '.local.me';
+
 var REPOS = Path.join(process.env.HOME, 'repos');
-
 fs.ensureDirSync(REPOS);
-var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
 
-var repos = (function() {
-  var repos = fs.readdirSync(REPOS);
-  var result = {};
-  repos.forEach(function(repo) {
-    try {
-      var dirs = fs.readdirSync(Path.join(REPOS, repo));
-      var branches = [];
-      if (dirs.indexOf('branches') !== -1) 
-        branches = fs.readdirSync(Path.join(REPOS, repo, 'branches'));
-      result[repo] = branches;
-    } catch (e) {}
-  });
-  return result;
-}());
-console.log('Repos: ', repos);
+var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
+var MINPORT = 8000, MAXPORT = 9000;
+
+var repos;
+var serverStatus;
+
+// var repos = (function() {
+//   var repos = fs.readdirSync(REPOS);
+//   var result = {};
+//   repos.forEach(function(repo) {
+//     try {
+//       var dirs = fs.readdirSync(Path.join(REPOS, repo));
+//       var branches = [];
+//       if (dirs.indexOf('branches') !== -1) 
+//         branches = fs.readdirSync(Path.join(REPOS, repo, 'branches'));
+//       result[repo] = branches;
+//     } catch (e) {}
+//   });
+//   return result;
+// }());
+// console.log('Repos: ', repos);
 
 var startCommands = {
   "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},
   "rails": { command: 'rails', args: ['s', '-p']}
 };
-
-var domain = '.local.me';
 
 function resolve (fn) {
   fn.when(
@@ -46,6 +50,14 @@ function resolve (fn) {
       console.log(error);
       aproxy.close();
     });
+}
+
+function findUnusedPort() {
+  for (var p = MINPORT; p < MAXPORT; p++) {
+    if (serverStatus.ports.index(p) === -1) return p;
+  }
+  console.log('Error: no available port');
+  return null;
 }
 
 function createHaproxyRule(backend) {
@@ -103,10 +115,25 @@ function startProcess(path, command) {
   return child.pid;
 }
 
-function startServer(repo, branch, pid, demoJson) {
+function startServer(repo, branch, demoJson) {
   var vow = VOW.make();
-
-
+  var status = repos[repo][branch];
+  var branchPath = Path.join(REPOS, repo, 'branches', branch);
+  var startCommand = demoJson.start.replace('PORT', findUnusedPort());
+  if (!demoJson) return VOW.broken('Could not find demo.json, so don\'t know how to start the server..');
+  if (status.pid && status.restartOnCheckout) {
+    exec('kill ' + status.pid).when(
+      function(result) {
+        vow.keep(startProcess(branchPath, startCommand));
+      },
+      function(error) {
+        console.log('Error:', error);
+        vow.keep(startProcess(branchPath, startCommand));
+      });
+  }
+  if (!status.pid)
+    return VOW.kept(startProcess(branchPath, startCommand));
+  else return VOW.kept('Server already running');
   return vow.promise;
 }
 
@@ -169,10 +196,8 @@ function checkout(repo, branch) {
 
   exec(gitOperation).when(
     function() {
-      var pid = getPid(Path.join(workTree, 'pid'));
       var demoJson = getDemoJson(repo, branch);
-      if (!demoJson) return VOW.broken('Could not find demo.json, so don\'t know how to start the server..');
-      else return startServer(repo, branch, pid, demoJson);
+      return startServer(repo, branch, demoJson);
     }).when(
       function(data) {
         console.log('OK', data);
@@ -202,7 +227,7 @@ function bind(url) {
   }
   var backends = [];
   Object.keys(repos).forEach(function(repo) {
-    repos[repo].forEach(function(branch) {
+    Object.keys(repos[repo]).forEach(function(branch) {
       backends.push(repo + '-' + branch);
     });
   });
@@ -285,19 +310,55 @@ function info(repo, branch) {
 
 
 function url(repo, branch) {
+  // var status = repos[repo][branch];
+  // if (status.pid)
+  console.log('http://' + repo + '-' + branch + domain);
+  
 
 }
 
-function restart(repo) {
+function restart(repo, branch) {
+  var status = repos[repo][branch];
+  exec('kill ' + status.pid).when(
+    function(result) {
+      vow.keep(startProcess(branchPath, startCommand));
+    },
+    function(error) {
+      console.log('Error:', error);
+      vow.keep(startProcess(branchPath, startCommand));
+    });
+}
 
+function execInBranch(repo, branch, command) {
+  var branchPath = Path.join(REPOS, repo, 'branches', branch);
+  resolve(exec('cd ' + branchPath + ';' + command));
 }
 
 
 function start(repo, branch) {
-
+  var status = repos[repo][branch];
+  var branchPath = Path.join(REPOS, repo, 'branches', branch);
+  var startCommand = demoJson.start.replace('PORT', findUnusedPort());
+  var demoJson = getDemoJson(repo, branch);
+  if (status.pid) {
+    console.log('Server already running');
+    return;
+  }
+  startProcess(branchPath, startCommand);
 }
 
 function stop(repo, branch) {
+  var status = repos[repo][branch];
+    exec('kill ' + status.pid).when(
+      function(result) {
+        console.log('Killed server');
+      },
+      function(error) {
+        console.log('Error:', error);
+      });
+}
+
+function log(repo, branch) {
 
 }
 
@@ -324,6 +385,11 @@ function _do(operation, args) {
     return;
   }
 
+  if (!repos[repo][branch] && operation !== 'checkout') {
+    error(args, 'Unknown branch');
+    return;
+  }
+
   operation = operations.internal.branches[operation];
   if (!operation) {
     error(args, 'Unknown operation for branch');
@@ -343,6 +409,7 @@ var txt = [
   "offline <repo> <branch>      : take web server offline for branch",
   "offline <repo> <branch>      : take web server offline for branch",
   "info <repo> <branch>         : status and url for repo-branch",
+  "log <repo> <branch>          : print log of server in branch",
   "exec <repo> <branch>         : execute command in branch folder",
   "bind url                     : domain:port of frontend",
   "\nTo add a remote to a repo:",
@@ -384,16 +451,34 @@ var operations = {
     branches: {
       list: list,
       checkout: checkout,
-      delete: deleteBranch
+      delete: deleteBranch,
+      start: start,
+      stop: stop,
+      restart: restart,
+      online: online,
+      offline: offline,
+      log: log,
+      exec: execInBranch,
+      url: url
     }
   }
 };
 
 module.exports = function(operation, args) {
-  operation = operations.public[operation] || error;
-  operation(args);
+  utils.getServerStatus(REPOS, MINPORT, MAXPORT).when(
+    function(data) {
+      repos = data.repos;
+      serverStatus = data;
+      console.log(util.inspect(data, { depth: 10, colors: true }));
+      operation = operations.public[operation] || error;
+      operation(args);
+    }
+    ,function(error) {
+      console.log(error);
+    }
+  );
 };
 
-// module.exports('bind', []);
+module.exports('bind', []);
 
 

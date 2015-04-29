@@ -29,3 +29,16 @@ Maybe have mysql, reids and elasticsearch in docker containter?
 
 ** bash autocomplete
 of repo and branch names
+
+
+* features
+** https
+** protect against simultaneous use!!! 
+   lock when busy!!! And put requests in queue
+
+* Take note:
+** server process can't change dir!!!
+Otherwise it won't be found by port.
+port -> pid -> cwd of server
+Looking for all listening ports within a range that have a process with cwd in ~/repos!
+
