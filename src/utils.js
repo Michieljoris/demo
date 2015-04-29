@@ -47,16 +47,20 @@ function join(repos, cwdList, portPidMapping) {
       var branch = path[2];
       return { port: m[0], pid: m[1], repo: repo, branch: branch };
     });
+  var serversByKey = {};
   var orphans = servers.filter(function(s) {
     if (repos[s.repo] && repos[s.repo][s.branch]) {
-      repos[s.repo][s.branch] = { pid: s.pid, port: s.port };
+      serversByKey[s.repo + '-' + s.branch] = 
+        repos[s.repo][s.branch] = { pid: s.pid, port: s.port };
       return false;
     }
     else return true;
   });
+  // console.log('Servers\n', servers);
   // console.log('Repos\n', repos);
   // console.log('Orphans\n', orphans);
-  return { repos: repos, orphans: orphans, rogues: rogues, ports: ports };
+  // console.log('By key\n', reposByKey);
+  return { repos: repos, serversByKey: serversByKey, orphans: orphans, rogues: rogues, ports: ports };
   
 }
 
@@ -144,8 +148,9 @@ module.exports = {
   }
 };
 
-
-// getPortInfo(8000, 9000).when(
+//test
+// var someREPOS = Path.join(process.env.HOME, 'repos');
+// module.exports.getServerStatus(someREPOS, 8000, 9000).when(
 //     function(data) {
 //       console.log(util.inspect(data, { depth: 10, colors: true }));
 //     },
@@ -153,26 +158,3 @@ module.exports = {
 //       console.log(error);
 //     });
 
-
-
-// var command = "ember";
-// // nohup node server.js >/dev/null 2>&1 &
-// // shell.exec(command, function(status, output) {
-// //   console.log(status, output);
-// // });
-
-var fs = require('fs'),
-     spawn = require('child_process').spawn,
-     out = fs.openSync('./out.log', 'a'),
-     err = fs.openSync('./out.log', 'a');
-
-var child = spawn("ember", ["s","--proxy", "http://localhost:3000" ], {
-// var child = spawn("ls", [], {
-   cwd: "/home/michieljoris/src/ember-cli/frontend",
-   detached: true,
-   stdio: [ 'ignore', out, err ]
- });
-
-child.unref();
-
-console.log("pid", child.pid);

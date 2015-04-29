@@ -5,10 +5,13 @@ var spawn = require('child_process').spawn;
 var util = require('util');
 var shell = require('shelljs');
 var fs = require('fs-extra');
+var extend = require('extend');
 
 var utils = require('./utils');
 
 var domain = '.local.me';
+var defaultBind = '127.0.0.1:7500';
+var defaultBackend = { key: 'default',  port: 5000};
 
 var REPOS = Path.join(process.env.HOME, 'repos');
 fs.ensureDirSync(REPOS);
@@ -18,49 +21,38 @@ var MINPORT = 8000, MAXPORT = 9000;
 
 var repos;
 var serverStatus;
+var frontend;
+var backends;
 
-// var repos = (function() {
-//   var repos = fs.readdirSync(REPOS);
-//   var result = {};
-//   repos.forEach(function(repo) {
-//     try {
-//       var dirs = fs.readdirSync(Path.join(REPOS, repo));
-//       var branches = [];
-//       if (dirs.indexOf('branches') !== -1) 
-//         branches = fs.readdirSync(Path.join(REPOS, repo, 'branches'));
-//       result[repo] = branches;
-//     } catch (e) {}
-//   });
-//   return result;
-// }());
-// console.log('Repos: ', repos);
-
-var startCommands = {
-  "ember-cli": { command: 'ember', args: ['s', '--proxy', 'http://localhost:3000', '-p']},
-  "rails": { command: 'rails', args: ['s', '-p']}
-};
+function inspect(arg) {
+  return util.inspect(arg, { depth: 10, colors: true });
+}
 
 function resolve (fn) {
   fn.when(
     function(data) {
-      if (data) console.log(data);
+      if (data) {
+        if (Array.isArray(data) && !data.length) ;
+        else console.log(data);
+      }
+      else console.log('Done');
       haproxy.close();
     },
     function(error) {
       console.log(error);
-      aproxy.close();
+      haproxy.close();
     });
 }
-
 function findUnusedPort() {
   for (var p = MINPORT; p < MAXPORT; p++) {
-    if (serverStatus.ports.index(p) === -1) return p;
+    if (serverStatus.ports.indexOf(p) === -1) return p;
   }
   console.log('Error: no available port');
   return null;
 }
 
-function createHaproxyRule(backend) {
+function createHaproxyRule(repo, branch) {
+  var backend = repo + '-' + branch;
   return {
     "type": "header"
     , "header": "host"            // the name of the HTTP header
@@ -70,70 +62,65 @@ function createHaproxyRule(backend) {
     };
 }
 
-function createFrontend(bind, backends) {
-  return ['www', {
-    "bind": bind // IP and ports to bind to, comma separated, host may be *
-    , "backend": backends[0] || 'foo'      // the default backend to route to, it must be defined already 
-    , "rules": backends.map(function(backend) {
-      return createHaproxyRule(backend);
-    })
-    // , "mode": "http"         // default: http, expects tcp|http
-    // , "keepalive": "default"  // default: "default", expects default|close|server-close
+// function createFrontend(bind, defaultBackend, rules) {
+//   return ['demo', {
+//     "bind": bind 
+//     , "backend": defaultBackend      // the default backend to route to, it must be defined already 
+//     , "rules":rules
+//     // , "mode": "http"         // default: http, expects tcp|http
+//     // , "keepalive": "default"  // default: "default", expects default|close|server-close
 
-  }];
-}
+//   }];
+// }
 
-function createBackend(id, port, pid) {
-  return [id, {
-    // "type" : "static" 
-    // , "name" : backend
-    // , "host" : backend + domain
-     "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid }}]
-  }];
-}
-
-function repoType(repo, branch) {
-  var path = Path.join(REPOS, repo, 'branches', branch);
-  var type;
-  //test for config/application.rb with  require 'rails
-  //test for Brocfile with require('ember-cli/lib/broccoli/ember-app');
-  return type;
-}
+// function createBackend(id, port, pid) {
+//   return [id, {
+//     // "type" : "static" 
+//     // , "name" : backend
+//     // , "host" : backend + domain
+//      "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid }}]
+//   }];
+// }
 
 function startProcess(path, command) {
   var out = fs.openSync(path + '/out.log', 'a');
   var err = fs.openSync(path + '/out.log', 'a');
-
-  var child = spawn(command.command, command.args, {
+  command = command.split(' ');
+  var c = command[0];
+  var args = command.slice(1);
+  var child = spawn(c, args, {
     cwd: path,
     detached: true,
     stdio: [ 'ignore', out, err ]
   });
   child.unref();
 
-  console.log("pid", child.pid);
+  console.log("Started server, pid is", child.pid);
   return child.pid;
 }
 
-function startServer(repo, branch, demoJson) {
+function startServer(repo, branch, port, restartAlways) {
+  var demoJson = getDemoJson(repo, branch);
+  if (!demoJson)
+    return VOW.broken('Could not find demo.json, so don\'t know how to start the server..');
   var vow = VOW.make();
   var status = repos[repo][branch];
   var branchPath = Path.join(REPOS, repo, 'branches', branch);
-  var startCommand = demoJson.start.replace('PORT', findUnusedPort());
-  if (!demoJson) return VOW.broken('Could not find demo.json, so don\'t know how to start the server..');
-  if (status.pid && status.restartOnCheckout) {
-    exec('kill ' + status.pid).when(
-      function(result) {
-        vow.keep(startProcess(branchPath, startCommand));
-      },
-      function(error) {
-        console.log('Error:', error);
-        vow.keep(startProcess(branchPath, startCommand));
-      });
+  var startCommand = demoJson.start.replace('PORT', port);
+  if (status && status.pid) {
+    if (demoJson.restartOnCheckout || restartAlways) {
+      exec('kill ' + status.pid).when(
+        function(result) {
+          vow.keep(startProcess(branchPath, startCommand));
+        },
+        function(error) {
+          console.log('Error:', error);
+          vow.keep(startProcess(branchPath, startCommand));
+        });
+    }
+    else return VOW.kept(status.pid);
   }
-  if (!status.pid)
-    return VOW.kept(startProcess(branchPath, startCommand));
-  else return VOW.kept('Server already running');
+  else return VOW.kept(startProcess(branchPath, startCommand));
   return vow.promise;
 }
 
@@ -146,29 +133,24 @@ function exec(command) {
   return vow.promise;
 }
 
-function getPid(path) {
-  try {
-    var pid = fs.readFileSync(path);
-    return pid;
-  } catch(e) {
-    return null;
-  }
-}
-
 function getJson(path) {
   try {
     return fs.readJsonSync(path);
   } catch(e) {
+    if (e.code !== 'ENOENT')
+      console.log(path, e);
     return null;
   };
 }
 
 function getDemoJson(repo, branch) {
-  var json;
   var repoJsonPath = Path.join(REPOS, repo, 'demo.json');
-  var branchJson = getJson(Path.join(REPOS, repo, 'branches', branch, 'demo.json'));
+  var branchJsonPath = Path.join(REPOS, repo, 'branches', branch, 'demo.json');
+  var branchJson = getJson(branchJsonPath);
   var repoJson = getJson(repoJsonPath);
-  json = branchJson || repoJson;
+  if (!branchJson) console.log('No (valid) )demo.json found in branch');
+  if (!branchJson && repoJson) console.log('Using demo.json from repo');
+  var json = branchJson || repoJson;
   if (!repoJson && branchJson) {
     try {
       fs.writeJson(repoJsonPath, branchJson);
@@ -193,31 +175,29 @@ function checkout(repo, branch) {
 
   var gitOperation = "git " + '--work-tree=' + workTree +
     " --git-dir=" + Path.join(REPOS, repo, 'bare') + " checkout " +  branch + " -f";
-
-  exec(gitOperation).when(
-    function() {
-      var demoJson = getDemoJson(repo, branch);
-      return startServer(repo, branch, demoJson);
-    }).when(
+  console.log(gitOperation);
+  var port;
+  exec(gitOperation)
+    .when(function() {
+      port = findUnusedPort();
+      return startServer(repo, branch, port); })
+    .when(
+      function(pid) {
+        // console.log('Pid: ', pid);
+        return haproxy('putBackend', [repo + '-' + branch, {
+          "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid } }] 
+        }]);
+      })
+    .when(
       function(data) {
-        console.log('OK', data);
+        url(repo, branch);
+        if (data) console.log(data);
+        haproxy.close();
       },
       function(error) {
         console.log('Error', error);
+        haproxy.close();
       });
-}
-
-function list(repo, branch) {
-  console.log('in list', repo, branch);
-  haproxy('getBackends').when(
-    function(data) {
-      console.log(data);
-      haproxy.close();
-    },
-    function(error) {
-      console.log('Error');
-      haproxy.close();
-    });
 }
 
 function bind(url) {
@@ -225,13 +205,7 @@ function bind(url) {
     error(null, 'Url missing');
     return;
   }
-  var backends = [];
-  Object.keys(repos).forEach(function(repo) {
-    Object.keys(repos[repo]).forEach(function(branch) {
-      backends.push(repo + '-' + branch);
-    });
-  });
-  resolve(haproxy('putFrontend', createFrontend(url, backends)));
+  resolve(haproxy('putFrontend', ['demo', { bind: url, backend: 'default' }]));
 }
 
 function create(repo) {
@@ -261,7 +235,6 @@ function create(repo) {
         console.log(error);
       }
     );
-
 }
 
 function deleteRepo(repo) { 
@@ -275,8 +248,17 @@ function deleteRepo(repo) {
         console.log(error);
       }
     );
-  //TODO stop servers and remove backends from haproxy
-
+  var pids = Object.keys(repos[repo])
+    .filter(function(branch) {
+      return branch.pid;
+    })
+    .map(function(branch) {
+      return branch.pid;
+    }).join(' ');
+  if (pids.length)
+    resolve(exec('kill ' + pids));
+  // resolve(haproxy('deleteBackends', backends.map(function(backend) {
+  //   return backend.key; })));
 }
 
 function deleteBranch(repo, branch) { 
@@ -290,43 +272,86 @@ function deleteBranch(repo, branch) {
         console.log(error);
       }
     );
-
-  //TODO stop server and remove backend from haproxy
+  var status = repos[repo][branch];
+  if (status.pid)
+    resolve(exec('kill ' + status.pid));
+  // resolve(haproxy('deleteBackend', repo + '-' + branch));
 }
 
-
-
 function online(repo, branch) {
-
+  var status = repos[repo][branch];
+  if (!status.pid) {
+    console.log('Error: Not running');
+  }
+  else if (typeof findRule(frontend.rules, repo, branch) !== 'undefined') {
+    console.log('Already online..');
+  }
+  else {
+    frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch));
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
 }
 
 function offline(repo, branch) {
-
+  var status = repos[repo][branch];
+  var index = findRule(frontend.rules, repo, branch);
+  if (typeof index === 'undefined') {
+    console.log('Already offline..');
+  }
+  else {
+    frontend.rules.splice(index, 1);
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
 }
 
-function info(repo, branch) {
+function status(repo, branch) {
+  if (repo || branch) {
+    _do('url', [repo, branch]);
+    return;
+  }
+  console.log(util.inspect(serverStatus, { depth: 10, colors: true }));
   resolve(haproxy('getHaproxyConfig'));
 }
 
+function findRule(rules, repo, branch) {
+  var index;
+  rules.some(function(rule, i) {
+    if (rule.backend === repo + '-' + branch) {
+      index = i;
+      return true;
+    };
+    return false;
+  });
+  return index;
+}
+
+function urls(repo) {
+  var rules = frontend.rules;
+  var r = repo ? [repo] : Object.keys(repos);
+  r.forEach(function(repo) {
+    Object.keys(repos[repo]).forEach(function(branch) {
+      var status = repos[repo][branch];
+      var str = 'http://' + repo + '-' + branch + domain;
+      if (!status.pid) console.log(str + ' (not running)');
+      else console.log(str + (typeof findRule(rules, repo, branch) !== 'undefined' ?
+                              '' : ' (running but not online)'));
+    });
+  });
+}
 
 function url(repo, branch) {
-  // var status = repos[repo][branch];
-  // if (status.pid)
-  console.log('http://' + repo + '-' + branch + domain);
-  
-
+  var status = repos[repo][branch];
+  var str = 'http://' + repo + '-' + branch + domain;
+  if (!status.pid) console.log(str + ' (not running)');
+  var rules = (frontend && frontend.rules) ? frontend.rules : [];
+  console.log(str + (findRule(rules, repo, branch) ? '' : ' (running but not online)'));
 }
 
 function restart(repo, branch) {
-  var status = repos[repo][branch];
-  exec('kill ' + status.pid).when(
-    function(result) {
-      vow.keep(startProcess(branchPath, startCommand));
-    },
-    function(error) {
-      console.log('Error:', error);
-      vow.keep(startProcess(branchPath, startCommand));
-    });
+  var port = findUnusedPort();
+  startServer(repo, branch, port, 'restartAlways').when(
+    function(pid) {}, function(error) { console.log(error); }
+  );
 }
 
 function execInBranch(repo, branch, command) {
@@ -334,32 +359,48 @@ function execInBranch(repo, branch, command) {
   resolve(exec('cd ' + branchPath + ';' + command));
 }
 
-
 function start(repo, branch) {
   var status = repos[repo][branch];
-  var branchPath = Path.join(REPOS, repo, 'branches', branch);
-  var startCommand = demoJson.start.replace('PORT', findUnusedPort());
-  var demoJson = getDemoJson(repo, branch);
   if (status.pid) {
     console.log('Server already running');
     return;
   }
-  startProcess(branchPath, startCommand);
+  var demoJson = getDemoJson(repo, branch);
+  if (!demoJson) {
+    console.log('Could not find demo.json, so don\'t know how to start the server..');
+    return;
+  }
+  var branchPath = Path.join(REPOS, repo, 'branches', branch);
+  var port = findUnusedPort();
+  var startCommand = demoJson.start.replace('PORT', port);
+  var pid = startProcess(branchPath, startCommand);
+  resolve(haproxy('putBackend', [repo + '-' + branch,
+                                 { members: [{ host: '127.0.0.1', port: port, meta: { pid: pid }}] }
+                                ]));
 }
 
 function stop(repo, branch) {
   var status = repos[repo][branch];
-    exec('kill ' + status.pid).when(
-      function(result) {
-        console.log('Killed server');
-      },
-      function(error) {
-        console.log('Error:', error);
-      });
+  if (!status.pid) {
+    console.log('Server is already not running');
+    return;
+  }
+  exec('kill ' + status.pid).when(
+    function(result) {
+      console.log('Killed server with pid ' + status.pid);
+    },
+    function(error) {
+      console.log('Error:', error);
+    });
 }
 
 function log(repo, branch) {
-
+  try {
+    var branchPath = Path.join(REPOS, repo, 'branches', branch);
+    console.log(fs.readFileSync(Path.join(branchPath, 'out.log') ,{ encoding: 'utf8' }));
+  } catch(e) {
+    console.log('No log found');
+  }
 }
 
 function _do(operation, args) {
@@ -395,31 +436,33 @@ function _do(operation, args) {
     error(args, 'Unknown operation for branch');
     return;
   }
-  operation(repo, branch);
+  operation(repo, branch, args[2]);
 }
 
 var txt = [
-  "create <repo>                : create a bare git repo on the server",
-  "delete <repo> [<branch]      : delete repo or just a branch",
-  "list [<repo>]                : list all branches (or just for repo)",
-  "checkout <repo> <branch>     : access branch at repo-branch.domain.com",
-  "start <repo> <branch>        : start web server for branch",
-  "stop <repo> <branch>         : stop web server for branch",
-  "online <repo> <branch>       : take web server online for branch",
-  "offline <repo> <branch>      : take web server offline for branch",
-  "offline <repo> <branch>      : take web server offline for branch",
-  "info <repo> <branch>         : status and url for repo-branch",
-  "log <repo> <branch>          : print log of server in branch",
-  "exec <repo> <branch>         : execute command in branch folder",
-  "bind url                     : domain:port of frontend",
+  "Help:",
+  "create repo              : create a bare git repo on the server",
+  "delete repo [branch]     : delete repo or just a branch",
+  "urls [repo]              : list urls (or just for repo)",
+  "url repo branch          : print url for repo-branch",
+  "checkout repo branch     : access branch at repo-branch.domain.com",
+  "start repo branch        : start web server for branch",
+  "stop repo branch         : stop web server for branch",
+  "online repo branch       : take web server online for branch",
+  "offline repo branch      : take web server offline for branch",
+  "status                   : status of server",
+  "log repo branch          : print log of server in branch",
+  "exec repo branch         : execute command in branch folder",
+  "bind url                 : domain:port of frontend proxy",
   "\nTo add a remote to a repo:",
-  "git remote add demo user@demo.com:repos/myrepo/bare"
+  "git remote add demo user@demo.com:repos/myrepo/bare",
+  "\nServe app online at myrepo-branch.domain.com:",
+  "git push demo branch"
 ];
-
 
 function error(args, msg) {
   if (msg) console.log(msg);
-  else console.log(txt.join('\n'));
+  // else console.log(txt.join('\n'));
 }
 
 var operations = {
@@ -427,29 +470,25 @@ var operations = {
     create: function(args) {
       create(args[0]);
     },
-    checkout: function(args) {
-      _do('checkout', args);
+    urls: function(args) {
+      if (!args || !args.length) urls();
+      else _do('urls', args);
     },
-    list: function(args) {
-      if (!args.length) list();
-      else _do('list', args);
-    },
-    delete: function(args) {
-      _do('delete', args);
-    },
-    bind: function(args) {
-      bind(args[0]);
-    },
-    info: info
+    bind: bind,
+    checkout: true, url: true, delete: true,
+    stop: true, start: true, restart: true,
+    exec: true, offline: true, online: true,
+    delete: true, log: true,
+    status: status
   },
   internal: {
     repos: {
-      list: list,
+      urls: urls,
       create: create,
       delete: deleteRepo
     },
     branches: {
-      list: list,
+      bind: bind,
       checkout: checkout,
       delete: deleteBranch,
       start: start,
@@ -464,21 +503,148 @@ var operations = {
   }
 };
 
+function findBackendByKey(backends, key) {
+  var index;
+  backends.some(function(backend, i) {
+    if (backend.key === key) {
+      index = i;
+      return true;
+    }
+    return false;
+  });
+  return index;
+}
+
+function createBackend(key, port, pid) {
+  return { key: key,
+           obj: {
+             "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid } }] 
+           }
+         };
+}
+
+function syncHaproxy(frontends, backends, repos) {
+  var index;
+  var frontendsToDelete =  [];
+  var backendsToDelete = [];
+  var backendsToWrite = [];
+  var writeFrontend;
+  serverStatus.serversByKey[defaultBackend.key] = { port: defaultBackend.port };
+  if (frontends) {
+    frontends.some(function(f, i) {
+      if (f.key === 'demo') {
+        index = i;
+        return true;
+      }
+      return false;
+    });
+    if (typeof index !== 'undefined') {
+      frontend = frontends[index];
+      frontends.splice(index, 1);
+      frontendsToDelete = frontends.map(function(f) {
+        return f.key;
+      });
+    }
+  }
+  if (backends) {
+    backends.forEach(function(backend) {
+      if (!serverStatus.serversByKey[backend.key])
+        backendsToDelete.push(backend.key);
+    });
+  }
+  Object.keys(serverStatus.serversByKey).forEach(function(key) {
+    var index = findBackendByKey(backends, key);
+    if (typeof index !== 'undefined') {
+      var pidPort = serverStatus.serversByKey[key];
+      var members = backends[index].members;
+      if (!members || !members[0] || members[0].port !== pidPort.port)
+        backendsToWrite.push(key);
+    }
+    else {
+      backendsToWrite.push(key);
+    }
+  });
+  if (frontend) {
+    if (frontend.backend !== defaultBackend.key) {
+      frontend.backend = defaultBackend.key;
+      writeFrontend = true;
+    }
+    frontend.rules = frontend.rules ? frontend.rules : [];;
+    frontend.rules = frontend.rules.filter(function(rule) {
+      var isServed = serverStatus.serversByKey[rule.backend];
+      if (!isServed) {  writeFrontend = true; return false; }
+      else return true;
+    });
+  }
+  else {
+    frontend =  { bind: defaultBind, backend: defaultBackend.key, rules: []  };
+    writeFrontend = true;
+  }
+
+  var ops = { put: {}, delete: {}};
+  if (frontendsToDelete.length) ops.delete.frontends = frontendsToDelete;
+  if (backendsToDelete.length) ops.delete.backends = backendsToDelete;
+  if (writeFrontend) ops.put.frontend = { key: 'demo', obj: frontend };
+  if (backendsToWrite.length) ops.put.backends = backendsToWrite.map(function(backend) {
+    var b = serverStatus.serversByKey[backend];
+    return createBackend(backend, b.port, b.pid);
+  });
+  console.log(inspect(ops));
+  // console.log('Frontends to delete\n', frontendsToDelete);
+  // console.log('Backends to delete\n', backendsToDelete);
+  // console.log('Backends to write\n', backendsToWrite);
+  // console.log('Write frontend', writeFrontend);
+  // console.log('frontend\n', frontend);
+  return haproxy('bulkSet', ops);
+  // return VOW.kept();
+}
+
 module.exports = function(operation, args) {
+  var frontends;
   utils.getServerStatus(REPOS, MINPORT, MAXPORT).when(
     function(data) {
-      repos = data.repos;
       serverStatus = data;
-      console.log(util.inspect(data, { depth: 10, colors: true }));
-      operation = operations.public[operation] || error;
-      operation(args);
-    }
-    ,function(error) {
-      console.log(error);
-    }
-  );
+      repos = serverStatus.repos;
+      console.log(inspect(serverStatus.repos));
+      console.log(inspect(serverStatus.serversByKey));
+      return haproxy('getFrontends'); })
+    .when(function(result) {
+      frontends = result; 
+      console.log(inspect(result));
+      return haproxy('getBackends'); })
+    .when(
+      function(result) {
+        backends = result;
+        console.log(inspect(backends));
+        return syncHaproxy(frontends, backends, repos);
+      })
+    .when(
+      function(data) {
+        haproxy.close();
+        var op = operations.public[operation];
+        if (op === true) _do(operation, args);
+        else if (!op) error(null, 'unknown operation');
+        else op(args);
+      }
+      ,function(error) {
+        haproxy.close();
+        console.log(error);
+      }
+    );
 };
 
-module.exports('bind', []);
+// module.exports('ind', '127.0.0.1:7700');
+// module.exports('urls', ['127.0.0.1:7609']);
+// module.exports('ind', ['127.0.0.1:5000', 'foo', 'master']);
+// module.exports('offline', ['bla', 'branch']);
+// module.exports('online', ['foo', 'foo-1']);
+// module.exports('online', ['foo', 'master']);
+// module.exports('checkout', ['foo', 'master']);
+
+module.exports('urls' );
+
+// module.exports('stop', ['foo', 'master']);//, ['127.0.0.1:7609']);
 
 
+
+// resolve(haproxy('getBackend', 'default'));

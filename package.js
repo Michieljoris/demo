@@ -107,6 +107,7 @@ module.exports = {
     "colors" : "*",
     "shelljs" : "0.4.x",
     "dougs_vow" : "*",
+    "extend": "~1.2.0",
     "node-haproxy" : "*"
         
     // "nodemailer": "*",
