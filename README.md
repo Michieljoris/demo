@@ -18,9 +18,11 @@ Vagrantfile:
     vagrant up
     vagrant ssh
 
-Add your public ssh file to ~/.ssh/authorized_keys and exit
+Add your public ssh file to ~/.ssh/authorized_keys, then:
 
-And this to /etc/hosts
+   node-haproxy --ipc
+
+In another terminal on the host add this to /etc/hosts
 
     demo.local 10.0.0.2
     someapp-master.demo.local 10.0.0.2
@@ -56,13 +58,13 @@ Then in the repo:
 
     git add -A; git commit -m 'added demo.json'; git push demo master
 
-You should then be able visit the app at someapp-master.demo.local
+You should then be able visit the app at someapp-master.demo.local:7500
 
 Then:
 
     git push demo somebranch
 
-Visit this branch at someapp-somebranch.demo.local
+Visit this branch at someapp-somebranch.demo.local:7500
 
 Rinse and repeat for other repos and branches
 
@@ -176,7 +178,8 @@ restart it, you could use forever to get around this for now
 * have demo read a config file. Settings like domain, port range, folder
   locations are hard coded in demo.js at the moment
 * implement running the 'init' command in demo.json on first checkout of a branch.
-
+* route port 80 to haproxy frontend proxy in vagrant file
+* work out how to use dnsmasq to simulate local wildcard domain
 
 
 

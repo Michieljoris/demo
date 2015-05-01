@@ -9,8 +9,8 @@ var extend = require('extend');
 
 var utils = require('./utils');
 
-var domain = '.local.me';
-var defaultBind = '127.0.0.1:7500';
+var domain = '.demo.local';
+var defaultBind = '*:7500';
 var defaultBackend = { key: 'default',  port: 5000};
 
 var REPOS = Path.join(process.env.HOME, 'repos');
@@ -153,8 +153,9 @@ function getDemoJson(repo, branch) {
   var branchJsonPath = Path.join(REPOS, repo, 'branches', branch, 'demo.json');
   var branchJson = getJson(branchJsonPath);
   var repoJson = getJson(repoJsonPath);
-  if (!branchJson) console.log('No (valid) )demo.json found in branch');
-  if (!branchJson && repoJson) console.log('Using demo.json from repo');
+  if (branchJson) console.log('Using demo.json from branch');
+  if (!branchJson && repoJson) console.log('Using demo.json copied from another branch');
+  // if (!branchJson && !repoJson) console.log('Using demo.json from branch');
   var json = branchJson || repoJson;
   if (!repoJson && branchJson) {
     try {
@@ -188,8 +189,8 @@ function checkout(repo, branch) {
       return startServer(repo, branch, port); })
     .when(
       function(result) {
-        var pid = result;
-        // console.log('Pid: ', pid);
+        pid = result;
+        console.log('Pid: ', pid);
         return haproxy('putBackend', [repo + '-' + branch, {
           "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid } }] 
         }]);
