@@ -91,6 +91,7 @@ function getCwd(portPidMapping) {
   var pids = portPidMapping.map(function(m) {
     return m[1];
   }).join(' ');
+  if (!pids.length) return VOW.kept(join(repos, [], portPidMapping));
   exec('pwdx ' + pids).when(
     function(cwdList) {
       cwdList = cwdList.split('\n')
@@ -103,10 +104,9 @@ function getCwd(portPidMapping) {
           } catch(e) { return ''; }
         });
       vow.keep(join(repos, cwdList, portPidMapping));
-      // vow.keep(portPidMapping);
     },
     function(error) {
-      vow.break(error);
+      vow.break('Error getting pids', error);
     }
   );
   return vow.promise;
@@ -150,7 +150,7 @@ module.exports = {
 
 //test
 // var someREPOS = Path.join(process.env.HOME, 'repos');
-// module.exports.getServerStatus(someREPOS, 8000, 9000).when(
+// module.exports.getServerStatus(someREPOS, 7000, 7002).when(
 //     function(data) {
 //       console.log(util.inspect(data, { depth: 10, colors: true }));
 //     },

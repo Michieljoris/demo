@@ -19,10 +19,13 @@ Vagrant.configure(2) do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://atlas.hashicorp.com/search.
+  # config.vm.box = "precise64"
   config.vm.box = BOX_NAME
+
+  # config.vm.box_url = "http://files.vagrantup.com/precise64.box"
   config.vm.box_url = BOX_URI
   # config.vm.synced_folder File.dirname(__FILE__), "/srv/dokku-alt"
-  config.vm.network :forwarded_port, guest: 80, host: 8080
+  config.vm.network :forwarded_port, guest: 80, host: 8888
   config.vm.hostname = "#{DEMO_DOMAIN}"
   config.vm.network :private_network, ip: DEMO_IP
 
@@ -35,11 +38,11 @@ Vagrant.configure(2) do |config|
   end
 
   # Configure docker apt sources
-  config.vm.provision :shell, :inline => "apt-get update -qq"
-  config.vm.provision :shell, :inline => "apt-get install -y apt-transport-https git"
-  config.vm.provision :shell, :inline => "apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9"
-  config.vm.provision :shell, :inline => "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list"
-  config.vm.provision :shell, :inline => "apt-get update -qq"
+  # config.vm.provision :shell, :inline => "apt-get update -qq"
+  # config.vm.provision :shell, :inline => "apt-get install -y apt-transport-https git"
+  # config.vm.provision :shell, :inline => "apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9"
+  # config.vm.provision :shell, :inline => "echo deb https://get.docker.io/ubuntu docker main > /etc/apt/sources.list.d/docker.list"
+  # config.vm.provision :shell, :inline => "apt-get update -qq"
 
 
   # Disable automatic box update checking. If you disable this, then
