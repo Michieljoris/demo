@@ -282,8 +282,6 @@ function deleteRepo(repo) {
     }).join(' ');
   if (pids.length)
     resolve(exec('kill ' + pids));
-  // resolve(haproxy('deleteBackends', backends.map(function(backend) {
-  //   return backend.key; })));
 }
 
 function deleteBranch(repo, branch) { 
@@ -300,7 +298,6 @@ function deleteBranch(repo, branch) {
   var status = repos[repo][branch];
   if (status.pid)
     resolve(exec('kill ' + status.pid));
-  // resolve(haproxy('deleteBackend', repo + '-' + branch));
 }
 
 function _online(repo, branch, pid) {
@@ -453,30 +450,26 @@ function log(repo, branch) {
 }
 
 function _default(repo, branch) {
-  // var backend;
-  // if (!branch) {
-  //   var port = Number.parseInt(repo);
-  //   if (isNaN(port)) {
-  //     log(null, "Port has to be a number");
-  //     return;
-  //   }
-  //   resolve(haproxy('putBackend', [defaultBackend.key,
-                                   
-  //                                 ]));
-  //   return;
-  // }
-  // var index = findBackendByKey(repo + '-' + branch);
-  // if (index === -1) {
-  //   log(null, "Can't set default backend to non existent branch");
-  //   return;
-  // }
-  // else {
-  //   backend = backends[index];
-  //   port = backend.members[0].port;
-  // }
-
-  //   backend = { members: [{ host: '127.0.0.1', port: port }] };
-  // resolve(haproxy('putBackend', []));
+  var backend;
+  if (!branch) {
+    var port = Number.parseInt(repo);
+    if (isNaN(port)) {
+      log(null, "Port has to be a number");
+      return;
+    }
+    backend = { members: [{ host: '127.0.0.1', port: port }] };
+    resolve(haproxy('putBackend', [defaultBackend.key,
+                                  ]));
+  }
+  else {
+    var index = findBackendByKey(repo + '-' + branch);
+    if (index === -1) {
+      log(null, "Can't set default backend to non existent branch");
+      return;
+    }
+    frontend.backend = repo + '-' + branch;
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
 }
 
 function version() {
@@ -657,7 +650,8 @@ function syncHaproxy(frontends, backends, repos) {
     }
   });
   if (frontend) {
-    if (frontend.backend !== defaultBackend.key) {
+    if (frontend.backend !== defaultBackend.key &&
+        !serverStatus.serversByKey[frontend.backend]) {
       frontend.backend = defaultBackend.key;
       writeFrontend = true;
     }
@@ -776,7 +770,7 @@ module.exports = function(operation, args) {
 // module.exports('online', ['foo', 'foo-1']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
-// module.exports('info');
+module.exports('info');
 
 // module.exports('range', ["a0000", "9000"] );
 

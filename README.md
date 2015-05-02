@@ -1,6 +1,8 @@
 demo
 --------
 
+Testing...
+
 Deploy a branch of web app to a server with a git push and view the app at branch.somedomain.com
 
 Demo is a command line utility to be used together with
@@ -114,12 +116,12 @@ Calling it without arguments  will output this:
     checkout repo branch     : access branch at repo-branch.domain.com
     start repo branch        : start web server for branch
     stop repo branch         : stop web server for branch
-    online repo branch       : take web server online for branch
+    online repo branch       : put web server online for branch
     offline repo branch      : take web server offline for branch
     log repo branch          : print log of server in branch
     exec repo branch         : execute command in branch folder
     bind network:port        : set network:port of frontend proxy [*:8080]
-    default repo branch|port : set proxy to repo-branch or port [port 5000]
+    default repo branch|port : set proxy to repo-branch or port [5000]
     domain domain            : set frontend wildcard domain [demo.local]
     range minPort maxPort    : set available port range [8000-9000]
     info                     : print config and server status
