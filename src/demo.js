@@ -770,7 +770,7 @@ module.exports = function(operation, args) {
 // module.exports('online', ['foo', 'foo-1']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
-module.exports('info');
+// module.exports('info');
 
 // module.exports('range', ["a0000", "9000"] );
 
