@@ -213,7 +213,8 @@ function checkout(repo, branch) {
       })
     .when(
       function(data) {
-        url(repo, branch);
+        var str = 'http://' + repo + '-' + branch + domain;
+        console.log('Visit your branch at: ' + str);
         if (data) console.log(data);
         haproxy.close();
       },
