@@ -35,6 +35,7 @@ var domain, MINPORT, MAXPORT;
 var repos;
 var serverStatus;
 var frontend;
+var frontendPort;
 var backends;
 
 var debug = function() {
@@ -226,8 +227,9 @@ function checkout(repo, branch) {
 
 function bind(args) {
   var url = args[0];
-  if (!url) {
-    error(null, 'Url missing');
+  var re = /.+:\d+/;
+  if (!url || !url.match(re)) {
+    error(null, 'Url missing or wrong format');
     return;
   }
   frontend.bind = url;
@@ -378,7 +380,7 @@ function urls(repo) {
   r.forEach(function(repo) {
     Object.keys(repos[repo]).forEach(function(branch) {
       var status = repos[repo][branch];
-      var str = 'http://' + repo + '-' + branch + domain;
+      var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
       if (!status.pid) console.log(str + ' (not running)');
       else console.log(str + (typeof findRule(rules, repo, branch) !== 'undefined' ?
                               '' : ' (running but not online)'));
@@ -388,7 +390,7 @@ function urls(repo) {
 
 function url(repo, branch) {
   var status = repos[repo][branch];
-  var str = 'http://' + repo + '-' + branch + domain;
+  var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
   if (!status.pid) console.log(str + ' (not running)');
   var rules = (frontend && frontend.rules) ? frontend.rules : [];
   console.log(str + (findRule(rules, repo, branch) ? '' : ' (running but not online)'));
@@ -752,6 +754,7 @@ module.exports = function(operation, args) {
     .when(
       function(data) {
         haproxy.close();
+        frontendPort = frontend.bind.split(':')[1];
         var op = operations.public[operation];
         if (op === true) _do(operation, args);
         else if (!op) error(null, 'unknown operation');
@@ -766,7 +769,7 @@ module.exports = function(operation, args) {
 
 // module.exports('ind', '127.0.0.1:7700');
 // module.exports('urls', ['127.0.0.1:7609']);
-// module.exports('bind', ['127.0.0.1:5700']);
+module.exports('bind', ['127.0.0.1:5700']);
 // module.exports('offline', ['bla', 'branch']);
 // module.exports('online', ['foo', 'foo-1']);
 // module.exports('online', ['foo', 'master']);
