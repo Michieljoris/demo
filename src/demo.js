@@ -6,19 +6,31 @@ var util = require('util');
 var shell = require('shelljs');
 var fs = require('fs-extra');
 var extend = require('extend');
-
 var utils = require('./utils');
 
-var domain = '.demo.local';
-var defaultBind = '*:7500';
-var defaultBackend = { key: 'default',  port: 5000};
+var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
+var PACKAGEJSON = Path.resolve(__dirname,  '../package.json');
 
 var REPOS = Path.join(process.env.HOME, 'repos');
 fs.ensureDirSync(REPOS);
 
-var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
-var PACKAGEJSON = Path.resolve(__dirname,  '../package.json');
-var MINPORT = 8000, MAXPORT = 9000;;
+var defaultBind = '*:7500';
+var defaultBackend = { key: 'default',  port: 5000 };
+
+var domain, MINPORT, MAXPORT;
+
+(function () {
+  var config = {};
+  var path = Path.join(REPOS, 'conf.json');
+  try {
+    config =  fs.readJsonSync(path);
+  } catch(e) {}
+  domain = config.domain || '.demo.local';
+  MINPORT = config.minPort || 8000;
+  MAXPORT = config.maxPort || 9000;
+})();
+
+
 
 var repos;
 var serverStatus;
@@ -323,15 +335,30 @@ function offline(repo, branch) {
   }
 }
 
-function status(repo, branch) {
-  // TODO needs cleaning up, maybe should be called debug
-  if (repo || branch) {
-    _do('url', [repo, branch]);
-    return;
-  }
+
+function info() {
+  var index = findBackendByKey(backends, defaultBackend.key);
+  var backend = backends[index];
+  var defaultPort = backend ? (backend.members ? backend.members[0].port : '?') : '?'; 
+  var txt = [
+    "Config:",
+    "domain: " + domain.slice(1),
+    "bind: " + frontend.bind,
+    "port range: " + MINPORT + '-' + MAXPORT,
+    "default backend: " + (frontend.backend === defaultBackend.key ?
+                           "port " + defaultPort : frontend.backend)
+  ];
+  console.log(txt.join('\n'));
+
   console.log('Server status:');
   console.log(util.inspect(serverStatus, { depth: 10, colors: true }));
-  console.log('Haproxy config:');
+
+}
+
+function haproxyInfo () {
+  console.log('Frontend:', inspect(frontend));
+  console.log('Backends:', inspect(backends));
+  console.log('Raw haproxy config file::');
   resolve(haproxy('getHaproxyConfig'));
 }
 
@@ -416,13 +443,40 @@ function stop(repo, branch) {
     });
 }
 
-function debug(repo, branch) {
+function log(repo, branch) {
   try {
     var branchPath = Path.join(REPOS, repo, 'branches', branch);
     console.log(fs.readFileSync(Path.join(branchPath, 'out.log') ,{ encoding: 'utf8' }));
   } catch(e) {
     console.log('No log found');
   }
+}
+
+function _default(repo, branch) {
+  // var backend;
+  // if (!branch) {
+  //   var port = Number.parseInt(repo);
+  //   if (isNaN(port)) {
+  //     log(null, "Port has to be a number");
+  //     return;
+  //   }
+  //   resolve(haproxy('putBackend', [defaultBackend.key,
+                                   
+  //                                 ]));
+  //   return;
+  // }
+  // var index = findBackendByKey(repo + '-' + branch);
+  // if (index === -1) {
+  //   log(null, "Can't set default backend to non existent branch");
+  //   return;
+  // }
+  // else {
+  //   backend = backends[index];
+  //   port = backend.members[0].port;
+  // }
+
+  //   backend = { members: [{ host: '127.0.0.1', port: port }] };
+  // resolve(haproxy('putBackend', []));
 }
 
 function version() {
@@ -477,12 +531,16 @@ var txt = [
   "stop repo branch         : stop web server for branch",
   "online repo branch       : take web server online for branch",
   "offline repo branch      : take web server offline for branch",
-  "status                   : status of server",
   "log repo branch          : print log of server in branch",
   "exec repo branch         : execute command in branch folder",
-  "bind url                 : domain:port of frontend proxy",
-  "version                  : print version",
-  "help                     : this help text",
+  "bind network:port        : set network:port of frontend proxy [*:8080]",
+  "default repo branch|port : set proxy to repo-branch or port [port 5000]",
+  "domain domain            : set frontend wildcard domain [demo.local]",
+  "range minPort maxPort    : set available port range [8000-9000]",
+  "info                     : print config and server status",
+  "haproxy                  : print haproxy configuration",
+  "v or version             : print version",
+  "h or help                : print this help text",
   "\nTo add a remote to a repo:",
   "git remote add demo user@demo.com:repos/myrepo/bare",
   "\nServe app online at myrepo-branch.domain.com:",
@@ -503,16 +561,17 @@ var operations = {
       if (!args || !args.length) urls();
       else _do('urls', args);
     },
+    default: function(args) {
+      if (args || args.length === 1) _default();
+      else _do('_default', args);
+    },
+    info: info,
     bind: bind,
+    haproxy: haproxyInfo,
     checkout: true, url: true, delete: true,
     stop: true, start: true, restart: true,
     exec: true, offline: true, online: true,
-    delete: true, log: true,
-    status: function(args) {
-      if (!args || !args.length) status();
-      else _do('status', args);
-    },
-    version: version
+    delete: true, log: true, default: true
   },
   internal: {
     repos: {
@@ -529,7 +588,7 @@ var operations = {
       restart: restart,
       online: online,
       offline: offline,
-      log: debug,
+      log: log,
       exec: execInBranch,
       url: url
     }
@@ -537,7 +596,7 @@ var operations = {
 };
 
 function findBackendByKey(backends, key) {
-  var index;
+  var index = -1;
   backends.some(function(backend, i) {
     if (backend.key === key) {
       index = i;
@@ -587,7 +646,7 @@ function syncHaproxy(frontends, backends, repos) {
   }
   Object.keys(serverStatus.serversByKey).forEach(function(key) {
     var index = findBackendByKey(backends, key);
-    if (typeof index !== 'undefined') {
+    if (index !== -1) {
       var pidPort = serverStatus.serversByKey[key];
       var members = backends[index].members;
       if (!members || !members[0] || members[0].port !== pidPort.port)
@@ -632,6 +691,33 @@ function syncHaproxy(frontends, backends, repos) {
   // return VOW.kept();
 }
 
+function setPortRange(minPort, maxPort) {
+  minPort = Number.parseInt(minPort);
+  maxPort = Number.parseInt(maxPort);
+  console.log(MINPORT, MAXPORT);
+  if (isNaN(minPort) || isNaN(maxPort))
+    error(null, 'Please enter numbers');
+  if (minPort >= maxPort)
+    error(null, 'maxPort should be bigger than minPort');
+  else {
+    MINPORT = minPort;
+    MAXPORT = maxPort;
+    saveConfig();
+  }
+}
+
+function saveConfig() {
+  try {
+    var path = Path.join(REPOS, 'conf.json');
+    fs.writeJsonSync(path, { domain: domain,
+                             minPort: MINPORT,
+                             maxPort: MAXPORT });
+  } catch(e) {
+    console.log("Couldn't save config!", e);
+  }
+
+}
+
 module.exports = function(operation, args) {
   if (!operation) {
     error();
@@ -642,6 +728,12 @@ module.exports = function(operation, args) {
    case 'version': version(); return;
    case 'h': ;
    case 'help': error(); return;
+   case 'range': setPortRange(args[0], args[1]); return;
+   case 'domain':
+    domain = '.' + domain;
+    console.log('OK');
+    saveConfig();
+    return;
   default: ;
   }
   var frontends;
@@ -654,12 +746,12 @@ module.exports = function(operation, args) {
       return haproxy('getFrontends'); })
     .when(function(result) {
       frontends = result; 
-      debug(inspect(result));
+      debug('Frontends:', inspect(result));
       return haproxy('getBackends'); })
     .when(
       function(result) {
         backends = result;
-        debug(inspect(backends));
+        debug('Backends:', inspect(backends));
         return syncHaproxy(frontends, backends, repos);
       })
     .when(
@@ -684,9 +776,10 @@ module.exports = function(operation, args) {
 // module.exports('online', ['foo', 'foo-1']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
-// module.exports('version');
+// module.exports('info');
 
-// module.exports('urls' );
+// module.exports('range', ["a0000", "9000"] );
+
 
 // module.exports('stop', ['foo', 'master']);//, ['127.0.0.1:7609']);
 

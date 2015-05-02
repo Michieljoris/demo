@@ -91,17 +91,33 @@ sudo gem install compass
 sudo apt-get install -y libmysqlclient-dev # for mysql2 gem
 
 #Node ----------
-sudo apt-get -y install nodejs npm
-sudo ln -s /usr/bin/nodejs /usr/bin/node
-sudo npm install -g forever
-sudo npm install -g bower
+mkdir ~/opt
+cd opt
+wget http://nodejs.org/dist/v0.12.2/node-v0.12.2-linux-x64.tar.gz
+tar xf node-v0.12.2-linux-x64.tar.gz
+ln -s node-v0.12.2-linux-x64 nodejs
+mkdir ~/bin
+cd ~/bin
+ln -s ../opt/nodejs/bin/node
+ln -s ../opt/nodejs/bin/npm
+cd ~/
+{ echo 'export PATH=~/bin:$PATH'; cat .bashrc; } > tmpfile; mv tmpfile .bashrc
+
+
+npm install -g forever
+npm install -g bower
 
 # Ember-cli ----------
-sudo npm install -g ember-cli
-sudo npm install -g node-haproxy
-git clone https://github.com/Michieljoris/demo.git
-cd demo
-sudo npm install -g
+npm install -g ember-cli
 
 #Haproxy ----------
 # apt-get -y install -y haproxy
+
+# demo
+git clone https://github.com/Michieljoris/node-haproxy.git
+forever -l ~/node-haproxy.log -a start ~/node-haproxy/bin/node-haproxy.js --ipc
+
+git clone https://github.com/Michieljoris/demo.git
+cd demo; npm install -g
+
+

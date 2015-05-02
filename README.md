@@ -1,14 +1,13 @@
 demo
 --------
 
-Working but needs testing.
-
 Deploy a branch of web app to a server with a git push and view the app at branch.somedomain.com
 
 Demo is a command line utility to be used together with
 [node-haproxy](https://github.com/michieljoris/node-haproxy). With it you can
 can amongst other things stop, start, remove branches and add and remove repos
 
+# Quickstart
 
 To see the whole thing in action without using a external server use the included
 Vagrantfile:
@@ -58,29 +57,48 @@ Then in the repo:
 
     git add -A; git commit -m 'added demo.json'; git push demo master
 
-You should then be able visit the app at someapp-master.demo.local:7500
+You should then be able visit the app at someapp-master.demo.local
 
 Then:
 
     git push demo somebranch
 
-Visit this branch at someapp-somebranch.demo.local:7500
+Visit this branch at someapp-somebranch.demo.local
 
 Rinse and repeat for other repos and branches
 
 ## Install on server
 
-    npm install -g node-haproxy
-    node-haproxy --ipc &
+Npm needs to run without sudo, see provision-node.sh. If you have a new server
+just copy the script to the server and execute it, you can then also skip the
+rest of this section and setup the domain for the server..
+
+    git clone https://github.com/Michieljoris/node-haproxy.git
     git clone https://github.com/Michieljoris/demo.git
+    cd demo; npm install -g
+    npm install -g forever
 
-Get a wildcard domain to point to your server. Modify src/demo.js in the
-demo folder and set the domain variable to your domain.
+Also make sure your npm -g installed scripts can be executed over ssh if you
+don't want to ssh into the server to issue demo commands.
 
-    cd demo
-    npm install -g 
+I had to put the path to my ~/bin dir at the front of .bashrc to make sure
+PATH gets set even when issuing commands using ssh:
 
-Use 'demo bind *:<port>' to bind haproxy to a port and ip address.
+{ echo 'export PATH=~/bin:$PATH'; cat .bashrc; } > tmpfile; mv tmpfile .bashrc
+
+Start the node frontend for haproxy. It starts its own instance of haproxy and
+an ipc server so haproxy can be controlled using the demo command utility (it
+uses the node-ipc module):
+
+    forever -l ~/node-haproxy.log -a start ~/node-haproxy/bin/node-haproxy.js --ipc
+
+# Setup domain:
+
+Get a wildcard domain to point to your server and decide what network and port
+to bind the frontend proxy to, then execute:
+
+    demo domain somedomain.com 
+    demo bind network:port # for instance *:8080
 
 # Use
 
@@ -98,12 +116,16 @@ Calling it without arguments  will output this:
     stop repo branch         : stop web server for branch
     online repo branch       : take web server online for branch
     offline repo branch      : take web server offline for branch
-    status                   : status of server
     log repo branch          : print log of server in branch
     exec repo branch         : execute command in branch folder
-    bind url                 : domain:port of frontend proxy
-    version                  : print version
-    help                     : this help text
+    bind network:port        : set network:port of frontend proxy [*:8080]
+    default repo branch|port : set proxy to repo-branch or port [port 5000]
+    domain domain            : set frontend wildcard domain [demo.local]
+    range minPort maxPort    : set available port range [8000-9000]
+    info                     : print config and server status
+    haproxy                  : print haproxy configuration
+    v or version             : print version
+    h or help                : print this help text
 
     To add a remote to a repo:
     git remote add demo user@demo.com:repos/myrepo/bare
@@ -145,40 +167,50 @@ the server if demo.json is found in the branch folder.
 
 Execute a command in a repo/branch folder with exec repo branch.
 
-Domain is hard coded in demo.js at the moment (demo.local). It works in the
-accompanying Vagrantfile. It HAS to match the domain name used to get to your
-server.If you use a online server you need a wildcard domain pointing to it. If
-it is *.somedomain.com, you need to set the domain variable in demo.js to
-.somedomain.com. See TODO below.
+You HAVE set the correct domain name .If you use an online server you need a
+wildcard domain pointing to it. If it is *.somedomain.com, you need to set the
+domain variable in demo.js to somedomain.com
+
+You can set a default server or repo-branch to proxy to for requests of the root
+domain, or of non-existent wildcards. (somedomain.com, or blabla.somedomain.com).
+
+You can set a port range if you like, but it doesn't really matter, as long as
+there are enough ports available within the range for all your branches.
+
+Get info on internal config and data structures with info and haproxy.
 
 How it all works is that the demo utility on every invocation finds the pids of
 all servers withing a certain range.It then looks for the current working
 directory of all those pids. The ones that match a
-repos/<repo>/branches/<branch> folder are running demo servers. It then makes
-sure that haproxy.config is set up properly to match the current server status.
-Haproxy then routes something like somerepo-somebranch.somedomain.com to the
-right server.
+repos/<repo>/branches/<branch> folder are running demo servers. It makes sure
+that haproxy.config is set up properly to match the current server status.
+Haproxy will then route something like somerepo-somebranch.somedomain.com to
+the right server.
 
 This is easy to manage and pretty foolproof, as long as a server (script) does
-not change working directoy for its process. Rogue (wrong cwd) and orphan
-servers (cwd deleted) also get picked up but are not managed at the moment. I
-don't need to record and store pids and ports this way.
+not change working directoy for its process. Rogue (within range, but wrong cwd)
+and orphan servers (cwd deleted) also get picked up but are not managed at the
+moment. I am not and don't need to record and store pids and ports.
 
 Node-haproxy is a long running process. The demo util only runs as long as is
 needed to execute a command. ipc-node is used to communicate between the two
 processes.
+
+# Notes
+
+To forward port 80 to the frontend haproxy is binding to: 
+[https://www.debian-administration.org/article/601/Easily_forwarding_arbitrary_TCP_connections_with_rinetd]()
+sudo apt-get install -y rinetd
 
 
 # Todo
 
 * ssl
 * node-haproxy is still a bit flaky, as in it can crash on wrong commands, just
-restart it, you could use forever to get around this for now
+restart it, I use forever to get  around this. It doesn't really matter if it
+crashes though, as long as it gets restarted.
 * disable debug output 
-* have demo read a config file. Settings like domain, port range, folder
-  locations are hard coded in demo.js at the moment
 * implement running the 'init' command in demo.json on first checkout of a branch.
-* route port 80 to haproxy frontend proxy in vagrant file
 * work out how to use dnsmasq to simulate local wildcard domain
 
 

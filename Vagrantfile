@@ -108,7 +108,15 @@ Vagrant.configure(2) do |config|
   # config.vm.network :forwarded_port, guest: 6379, host: 6379
 
   # See http://www.thisprogrammingthing.com/2013/getting-started-with-vagrant/
-  config.vm.provision :shell, :path => "provision.sh"
+  # Provisin Vagrant with node, npm, forever, bower, node-haproxy and demo:
+  config.vm.provision :shell, :inline => "apt-get update -qq"
+  config.vm.provision :shell, :path => "provision-node.sh"
 
+  # comment out the last two lines and uncomment the next one to provision
+  # Vagrant with mysql, redis, JRE, elasticsearch, rinetd, ruby 2.1, bundler,
+  # compass, node, npm, bower, forever ember-cli, node-haproxy and demo
+
+  # config.vm.provision :shell, :path => "provision.sh"
+  
 
 end
