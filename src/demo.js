@@ -724,7 +724,7 @@ module.exports = function(operation, args) {
    case 'help': error(); return;
    case 'range': setPortRange(args[0], args[1]); return;
    case 'domain':
-    domain = '.' + domain;
+    domain = '.' + args[0];
     console.log('OK');
     saveConfig();
     return;

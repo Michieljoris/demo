@@ -22,5 +22,6 @@ git clone https://github.com/Michieljoris/node-haproxy.git
 cd node-haproxy; npm install;
 forever -l ~/node-haproxy.log -a start ~/node-haproxy/bin/node-haproxy.js --ipc
 
+cd ~/
 git clone https://github.com/Michieljoris/demo.git
 cd demo; npm install -g; cd ../
