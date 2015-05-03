@@ -214,6 +214,7 @@ crashes though, as long as it gets restarted.
 * disable debug output 
 * implement running the 'init' command in demo.json on first checkout of a branch.
 * work out how to use dnsmasq to simulate local wildcard domain
-
+* make it work with node install under sudo
+* give warning if domain backend mismatch
 
 

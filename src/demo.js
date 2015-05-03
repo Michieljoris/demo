@@ -7,6 +7,7 @@ var shell = require('shelljs');
 var fs = require('fs-extra');
 var extend = require('extend');
 var utils = require('./utils');
+require('colors');
 
 var POSTRECEIVE = Path.resolve(__dirname,  '../scripts', 'post-receive.sh');
 var PACKAGEJSON = Path.resolve(__dirname,  '../package.json');
@@ -381,9 +382,9 @@ function urls(repo) {
     Object.keys(repos[repo]).forEach(function(branch) {
       var status = repos[repo][branch];
       var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
-      if (!status.pid) console.log(str + ' (not running)');
+      if (!status.pid) console.log(str + ' (Server down)'.red);
       else console.log(str + (typeof findRule(rules, repo, branch) !== 'undefined' ?
-                              '' : ' (running but not online)'));
+                              '' : ' (offline)'.yellow));
     });
   });
 }
@@ -391,9 +392,9 @@ function urls(repo) {
 function url(repo, branch) {
   var status = repos[repo][branch];
   var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
-  if (!status.pid) console.log(str + ' (not running)');
+  if (!status.pid) console.log(str + ' (Server down)'.red);
   var rules = (frontend && frontend.rules) ? frontend.rules : [];
-  console.log(str + (findRule(rules, repo, branch) ? '' : ' (running but not online)'));
+  console.log(str + (findRule(rules, repo, branch) ? 'OK'.green : ' (offline)'.yellow));
 }
 
 function restart(repo, branch) {
@@ -679,13 +680,15 @@ function syncHaproxy(frontends, backends, repos) {
     return createBackend(backend, b.port, b.pid);
   });
   debug('Sync\n', inspect(ops));
+  
   // console.log('Frontends to delete\n', frontendsToDelete);
   // console.log('Backends to delete\n', backendsToDelete);
   // console.log('Backends to write\n', backendsToWrite);
   // console.log('Write frontend', writeFrontend);
   // console.log('frontend\n', frontend);
+  if (!Object.keys(ops.put).length && !Object.keys(ops.delete).length)
+    return VOW.kept();
   return haproxy('bulkSet', ops);
-  // return VOW.kept();
 }
 
 function setPortRange(minPort, maxPort) {
@@ -728,7 +731,7 @@ module.exports = function(operation, args) {
    case 'range': setPortRange(args[0], args[1]); return;
    case 'domain':
     domain = '.' + args[0];
-    console.log('OK');
+    console.log('Make sure to offline any current online servers and online them again to configure for the new domain');
     saveConfig();
     return;
   default: ;
@@ -769,9 +772,9 @@ module.exports = function(operation, args) {
 
 // module.exports('ind', '127.0.0.1:7700');
 // module.exports('urls', ['127.0.0.1:7609']);
-module.exports('bind', ['127.0.0.1:5700']);
+// module.exports('bind', ['127.0.0.1:5700']);
 // module.exports('offline', ['bla', 'branch']);
-// module.exports('online', ['foo', 'foo-1']);
+// module.exports('offline', ['foo', 'master']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
 // module.exports('info');
