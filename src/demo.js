@@ -215,7 +215,7 @@ function checkout(repo, branch) {
       })
     .when(
       function(data) {
-        var str = 'http://' + repo + '-' + branch + domain;
+        var str = 'http://' + repo + '-' + branch + domain + ':' + frontendPort;
         console.log('Visit your branch at: ' + str);
         if (data) console.log(data);
         haproxy.close();
