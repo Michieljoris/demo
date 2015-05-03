@@ -669,7 +669,10 @@ function syncHaproxy(frontends, backends, repos) {
         else return true;
       })
       .map(function(rule) {
-        rule.value = rule.backend + domain;
+        if (rule.value !== rule.backend + domain) {
+          writeFrontend = true;
+          rule.value = rule.backend + domain;
+        }
         return rule;
       });
   }
