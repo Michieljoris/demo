@@ -4,6 +4,8 @@ echo "deb http://packages.elasticsearch.org/elasticsearch/1.5/debian stable main
 
 sudo apt-get update 
 
+sudo apt-get install gcc make build-essential linux-headers-$(uname -r)
+
 #Mysql ----------
 sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
 sudo debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
@@ -89,35 +91,4 @@ sudo apt-get -y install ruby2.1 ruby2.1-dev
 sudo gem install bundler
 sudo gem install compass
 sudo apt-get install -y libmysqlclient-dev # for mysql2 gem
-
-#Node ----------
-mkdir ~/opt
-cd opt
-wget http://nodejs.org/dist/v0.12.2/node-v0.12.2-linux-x64.tar.gz
-tar xf node-v0.12.2-linux-x64.tar.gz
-ln -s node-v0.12.2-linux-x64 nodejs
-mkdir ~/bin
-cd ~/bin
-ln -s ../opt/nodejs/bin/node
-ln -s ../opt/nodejs/bin/npm
-cd ~/
-{ echo 'export PATH=~/bin:$PATH'; cat .bashrc; } > tmpfile; mv tmpfile .bashrc
-
-
-npm install -g forever
-npm install -g bower
-
-# Ember-cli ----------
-npm install -g ember-cli
-
-#Haproxy ----------
-# apt-get -y install -y haproxy
-
-# demo
-git clone https://github.com/Michieljoris/node-haproxy.git
-forever -l ~/node-haproxy.log -a start ~/node-haproxy/bin/node-haproxy.js --ipc
-
-git clone https://github.com/Michieljoris/demo.git
-cd demo; npm install -g
-
 

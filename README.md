@@ -73,14 +73,14 @@ Rinse and repeat for other repos and branches
 
 Npm needs to run without sudo, see provision-node.sh. If you have a new server
 just copy the script to the server and execute it, you can then also skip the
-rest of this section and setup the domain for the server..
+rest of this section and setup the domain for the server:
 
-    git clone https://github.com/Michieljoris/node-haproxy.git
     git clone https://github.com/Michieljoris/demo.git
-    cd demo; npm install -g
+    cd demo; npm install
     npm install -g forever
+    ln -s ~/demo/src/command.js ~/bin/demo
 
-Also make sure your npm -g installed scripts can be executed over ssh if you
+Also make sure your installed scripts can be executed over ssh if you
 don't want to ssh into the server to issue demo commands.
 
 I had to put the path to my ~/bin dir at the front of .bashrc to make sure
@@ -92,7 +92,7 @@ Start the node frontend for haproxy. It starts its own instance of haproxy and
 an ipc server so haproxy can be controlled using the demo command utility (it
 uses the node-ipc module):
 
-    forever -l ~/node-haproxy.log -a start ~/node-haproxy/bin/node-haproxy.js --ipc
+    forever -l ~/node-haproxy.log -a start ~/demo/node_modules/node-haproxy/bin/node-haproxy.js --ipc
 
 # Setup domain:
 
@@ -210,11 +210,9 @@ sudo apt-get install -y rinetd
 * ssl
 * node-haproxy is still a bit flaky, as in it can crash on wrong commands, just
 restart it, I use forever to get  around this. It doesn't really matter if it
-crashes though, as long as it gets restarted.
-* disable debug output 
+crashes though, as long as it gets restarted, which forever takes care of..
 * implement running the 'init' command in demo.json on first checkout of a branch.
-* work out how to use dnsmasq to simulate local wildcard domain
-* make it work with node install under sudo
-* give warning if domain backend mismatch
+* work out how to use dnsmasq to simulate local wildcard domain for Vagrant
+* make it work with node install under sudo, node-ipc stops communicating.
 
 

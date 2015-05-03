@@ -309,7 +309,7 @@ function _online(repo, branch, pid) {
   if (!pid) {
     vow.break('Error: Not running');
   }
-  else if (typeof findRule(frontend.rules, repo, branch) !== 'undefined') {
+  else if (findRule(frontend.rules, repo, branch) !== -1) {
     vow.keep('Already online..');
   }
   else {
@@ -327,7 +327,7 @@ function online(repo, branch) {
 function offline(repo, branch) {
   var status = repos[repo][branch];
   var index = findRule(frontend.rules, repo, branch);
-  if (typeof index === 'undefined') {
+  if (index < 0) {
     console.log('Already offline..');
   }
   else {
@@ -364,7 +364,7 @@ function haproxyInfo () {
 }
 
 function findRule(rules, repo, branch) {
-  var index;
+  var index = -1;;
   rules.some(function(rule, i) {
     if (rule.backend === repo + '-' + branch) {
       index = i;
@@ -375,6 +375,7 @@ function findRule(rules, repo, branch) {
   return index;
 }
 
+
 function urls(repo) {
   var rules = frontend.rules;
   var r = repo ? [repo] : Object.keys(repos);
@@ -383,8 +384,7 @@ function urls(repo) {
       var status = repos[repo][branch];
       var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
       if (!status.pid) console.log(str + ' (Server down)'.red);
-      else console.log(str + (typeof findRule(rules, repo, branch) !== 'undefined' ?
-                              '' : ' (offline)'.yellow));
+      else console.log(str + (findRule(rules, repo, branch) !== -1 ? '' : ' (offline)'.yellow));
     });
   });
 }
@@ -394,7 +394,7 @@ function url(repo, branch) {
   var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
   if (!status.pid) console.log(str + ' (Server down)'.red);
   var rules = (frontend && frontend.rules) ? frontend.rules : [];
-  console.log(str + (findRule(rules, repo, branch) ? 'OK'.green : ' (offline)'.yellow));
+  console.log(str + (findRule(rules, repo, branch) !== -1 ? 'OK'.green : ' (offline)'.yellow));
 }
 
 function restart(repo, branch) {
@@ -540,13 +540,15 @@ var txt = [
   "h or help                : print this help text",
   "\nTo add a remote to a repo:",
   "git remote add demo user@demo.com:repos/myrepo/bare",
-  "\nServe app online at myrepo-branch.domain.com:",
+  "\nServe app online at myrepo-branch.demo.com:",
   "git push demo branch"
 ];
 
 function error(args, msg) {
   if (msg) console.log(msg);
-  else console.log(txt.join('\n'));
+  else {
+    console.log(txt.join('\n'));
+  }
 }
 
 var operations = {
@@ -660,11 +662,16 @@ function syncHaproxy(frontends, backends, repos) {
       writeFrontend = true;
     }
     frontend.rules = frontend.rules ? frontend.rules : [];;
-    frontend.rules = frontend.rules.filter(function(rule) {
-      var isServed = serverStatus.serversByKey[rule.backend];
-      if (!isServed) {  writeFrontend = true; return false; }
-      else return true;
-    });
+    frontend.rules = frontend.rules
+      .filter(function(rule) {
+        var isServed = serverStatus.serversByKey[rule.backend];
+        if (!isServed) {  writeFrontend = true; return false; }
+        else return true;
+      })
+      .map(function(rule) {
+        rule.value = rule.backend + domain;
+        return rule;
+      });
   }
   else {
     frontend =  { bind: defaultBind, backend: defaultBackend.key, rules: []  };
@@ -731,9 +738,8 @@ module.exports = function(operation, args) {
    case 'range': setPortRange(args[0], args[1]); return;
    case 'domain':
     domain = '.' + args[0];
-    console.log('Make sure to offline any current online servers and online them again to configure for the new domain');
     saveConfig();
-    return;
+    operation = 'urls'; args = [];
   default: ;
   }
   var frontends;
@@ -778,7 +784,8 @@ module.exports = function(operation, args) {
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
 // module.exports('info');
-
+// module.exports('haproxy');
+// module.exports('info');
 // module.exports('range', ["a0000", "9000"] );
 
 

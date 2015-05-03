@@ -109,14 +109,17 @@ Vagrant.configure(2) do |config|
 
   # See http://www.thisprogrammingthing.com/2013/getting-started-with-vagrant/
   # Provisin Vagrant with node, npm, forever, bower, node-haproxy and demo:
-  config.vm.provision :shell, :inline => "apt-get update -qq"
+  config.vm.provision :shell, :inline => "apt-get update -qq; apt-get install git"
+  config.vm.provision :shell, :inline => "apt-get install gcc make build-essential linux-headers-$(uname -r)"
   config.vm.provision :shell, :path => "provision-node.sh"
 
-  # comment out the last two lines and uncomment the next one to provision
+  # comment out the last three lines and uncomment the next one to provision
   # Vagrant with mysql, redis, JRE, elasticsearch, rinetd, ruby 2.1, bundler,
   # compass, node, npm, bower, forever ember-cli, node-haproxy and demo
 
   # config.vm.provision :shell, :path => "provision.sh"
+  # config.vm.provision :shell, :path => "provision-node.sh"
+  # config.vm.provision :shell, :path => "provision-ember.sh"
   
 
 end
