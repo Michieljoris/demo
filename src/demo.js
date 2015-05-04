@@ -840,8 +840,8 @@ module.exports = function(operation, args) {
 // module.exports('offline', ['foo', 'master']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
-module.exports('info');
-module.exports('haproxy');
+// module.exports('info');
+// module.exports('haproxy');
 // module.exports('alias', ['foo', 'foo-1', 'foo-alias']);
 // module.exports('range', ["a0000", "9000"] );
 
