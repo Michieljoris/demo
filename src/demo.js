@@ -18,7 +18,7 @@ fs.ensureDirSync(REPOS);
 var defaultBind = '*:7500';
 var defaultBackend = { key: 'default',  port: 5000 };
 
-var domain, MINPORT, MAXPORT;
+var domain, MINPORT, MAXPORT, aliases;
 
 (function () {
   var config = {};
@@ -29,9 +29,8 @@ var domain, MINPORT, MAXPORT;
   domain = config.domain || '.demo.local';
   MINPORT = config.minPort || 8000;
   MAXPORT = config.maxPort || 9000;
+  aliases = config.aliases || {};
 })();
-
-
 
 var repos;
 var serverStatus;
@@ -70,13 +69,14 @@ function findUnusedPort() {
   return null;
 }
 
-function createHaproxyRule(repo, branch) {
+function createHaproxyRule(repo, branch, value) {
   var backend = repo + '-' + branch;
+  value = value || backend + domain;
   return {
     "type": "header"
     , "header": "host"            // the name of the HTTP header
     , "operation": "hdr_dom"
-    , "value": backend + domain
+    , "value": value
     , "backend": backend // if rule is met, the backend to route the request to
     };
 }
@@ -209,14 +209,14 @@ function checkout(repo, branch) {
           "members" : [{ host: '127.0.0.1', port: port, meta: { pid: pid } }] 
         }]);
       })
-    .when(
-      function() {
-       return _online(repo, branch, pid);
-      })
+    // .when(
+    //   function() {
+    //    return _online(repo, branch, pid);
+    //   })
     .when(
       function(data) {
         var str = 'http://' + repo + '-' + branch + domain + ':' + frontendPort;
-        console.log('Visit your branch at: ' + str);
+        console.log('Execute demo online ' + repo + ' ' + branch  + 'to visit your branch at: ' + str);
         if (data) console.log(data);
         haproxy.close();
       },
@@ -313,6 +313,9 @@ function _online(repo, branch, pid) {
     vow.keep('Already online..');
   }
   else {
+    var aliases = Object.keys(aliases).filter(function(alias) {
+      return aliases[alias] === repo + '-' + branch;
+    });
     frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch));
     return haproxy('putFrontend', ['demo', frontend]);
   }
@@ -327,11 +330,14 @@ function online(repo, branch) {
 function offline(repo, branch) {
   var status = repos[repo][branch];
   var index = findRule(frontend.rules, repo, branch);
-  if (index < 0) {
+  var nRules = frontend.rules.length;
+  frontend.rules = frontend.rules.filter(function(rule) {
+    return rule.backend !== repo + '-' + branch;
+  });
+  if (nRules === frontend.rules.length) {
     console.log('Already offline..');
   }
   else {
-    frontend.rules.splice(index, 1);
     resolve(haproxy('putFrontend', ['demo', frontend]));
   }
 }
@@ -365,8 +371,9 @@ function haproxyInfo () {
 
 function findRule(rules, repo, branch) {
   var index = -1;;
+  var key = repo + '-' + branch;
   rules.some(function(rule, i) {
-    if (rule.backend === repo + '-' + branch) {
+    if (rule.value === key + domain && rule.backend === key) {
       index = i;
       return true;
     };
@@ -375,6 +382,17 @@ function findRule(rules, repo, branch) {
   return index;
 }
 
+function findRuleByValue(rules, value) {
+  var index = -1;;
+  rules.some(function(rule, i) {
+    if (rule.value === value) {
+      index = i;
+      return true;
+    };
+    return false;
+  });
+  return index;
+}
 
 function urls(repo) {
   var rules = frontend.rules;
@@ -384,7 +402,7 @@ function urls(repo) {
       var status = repos[repo][branch];
       var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
       if (!status.pid) console.log(str + ' (Server down)'.red);
-      else console.log(str + (findRule(rules, repo, branch) !== -1 ? '' : ' (offline)'.yellow));
+      else console.log(str + (findRule(rules, repo, branch) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
     });
   });
 }
@@ -394,7 +412,35 @@ function url(repo, branch) {
   var str = 'http://' + repo + '-' + branch + domain + (frontendPort ? ':' + frontendPort : '');
   if (!status.pid) console.log(str + ' (Server down)'.red);
   var rules = (frontend && frontend.rules) ? frontend.rules : [];
-  console.log(str + (findRule(rules, repo, branch) !== -1 ? 'OK'.green : ' (offline)'.yellow));
+  console.log(str + (findRule(rules, repo, branch) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
+}
+
+function removeAlias(alias) {
+  if (aliases[alias]) {
+    delete aliases[alias];
+    saveConfig();
+  }
+  var index = findRuleByValue(alias + domain);
+  if (index > -1) {
+    frontend.rules.splice(index, 1); 
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
+}
+
+function setAlias(repo, branch, alias) {
+  aliases[alias]  = repo + '-' + branch;
+  saveConfig();
+  var index = findRule(frontend.rules, repo, branch);
+  if (index > -1) {
+    var rule = frontend.rules[index];
+    index = findRuleByValue(frontend.rules, alias + domain);
+    if (index > -1) {
+      frontend.rules[index].backend = repo + '-' + branch;
+    }
+    else frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch, alias));
+    
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
 }
 
 function restart(repo, branch) {
@@ -534,6 +580,7 @@ var txt = [
   "default repo branch|port : set proxy to repo-branch or port [port 5000]",
   "domain domain            : set frontend wildcard domain [demo.local]",
   "range minPort maxPort    : set available port range [8000-9000]",
+  "alias alias [repo branch]: set/remove alias for repo-branch",
   "info                     : print config and server status",
   "haproxy                  : print haproxy configuration",
   "v or version             : print version",
@@ -561,8 +608,12 @@ var operations = {
       else _do('urls', args);
     },
     default: function(args) {
-      if (args || args.length === 1) _default();
+      if (args && args.length === 1) _default();
       else _do('_default', args);
+    },
+    alias: function(args) {
+      if (args && args.length === 1) removeAlias(args[0]);
+      else _do('setAlias', [args[1], args[2], args[0]]);
     },
     info: info,
     bind: bind,
@@ -589,7 +640,8 @@ var operations = {
       offline: offline,
       log: log,
       exec: execInBranch,
-      url: url
+      url: url,
+      alias: alias
     }
   }
 };
@@ -721,7 +773,9 @@ function saveConfig() {
     var path = Path.join(REPOS, 'conf.json');
     fs.writeJsonSync(path, { domain: domain,
                              minPort: MINPORT,
-                             maxPort: MAXPORT });
+                             maxPort: MAXPORT,
+                             aliases: aliases
+                           });
   } catch(e) {
     console.log("Couldn't save config!", e);
   }
@@ -786,9 +840,9 @@ module.exports = function(operation, args) {
 // module.exports('offline', ['foo', 'master']);
 // module.exports('online', ['foo', 'master']);
 // module.exports('checkout', ['foo', 'master']);
-// module.exports('info');
-// module.exports('haproxy');
-// module.exports('info');
+module.exports('info');
+module.exports('haproxy');
+// module.exports('alias', ['foo', 'foo-1', 'foo-alias']);
 // module.exports('range', ["a0000", "9000"] );
 
 
