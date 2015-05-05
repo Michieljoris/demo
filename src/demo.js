@@ -70,6 +70,8 @@ function findUnusedPort() {
 }
 
 function createHaproxyRule(repo, branch, value) {
+
+  console.log(repo, branch, value);
   var backend = repo + '-' + branch;
   value = value || backend + domain;
   return {
@@ -85,7 +87,7 @@ function createHaproxyRule(repo, branch, value) {
 //   return ['demo', {
 //     "bind": bind 
 //     , "backend": defaultBackend      // the default backend to route to, it must be defined already 
-//     , "rules":rules
+//     , "rules":rules;
 //     // , "mode": "http"         // default: http, expects tcp|http
 //     // , "keepalive": "default"  // default: "default", expects default|close|server-close
 
@@ -313,18 +315,64 @@ function _online(repo, branch, pid) {
     vow.keep('Already online..');
   }
   else {
-    var aliases = Object.keys(aliases).filter(function(alias) {
-      return aliases[alias] === repo + '-' + branch;
-    });
     frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch));
     return haproxy('putFrontend', ['demo', frontend]);
   }
   return vow.promise;
 }
 
+function _onlineAlias(alias, repo, branch, pid) {
+  var vow = VOW.make();
+  if (!pid) {
+    vow.break('Error: Not running');
+  }
+  else if (findRuleByValue(frontend.rules, alias + domain) !== -1) {
+    vow.keep('Already online..');
+  }
+  else {
+    console.log(repo, branch, alias, domain);
+    frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch, alias + domain));
+    console.log(frontend.rules);
+    return haproxy('putFrontend', ['demo', frontend]);
+  }
+  return vow.promise;
+}
+
+
 function online(repo, branch) {
   var status = repos[repo][branch];
   resolve(_online(repo, branch, status.pid));
+}
+
+function onlineAlias(alias) {
+  var backend = aliases[alias];
+  if (!backend) {
+    console.log('Alias not found');
+    return;
+  }
+  var status = repos[backend.repo][backend.branch];
+  resolve(_onlineAlias(alias, backend.repo, backend.branch, status.pid));
+}
+
+function offlineAlias(alias) {
+  var backend = aliases[alias];
+  if (!backend) {
+    console.log('Alias not found');
+    return;
+  }
+  var index = findRuleByValue(frontend.rules, alias + domain);
+  var nRules = frontend.rules.length;
+  frontend.rules = frontend.rules.filter(function(rule) {
+    return rule.value !== alias + domain;
+  });
+  if (nRules === frontend.rules.length) {
+    console.log('Already offline..');
+  }
+  else {
+    resolve(haproxy('putFrontend', ['demo', frontend]));
+  }
+
+
 }
 
 function offline(repo, branch) {
@@ -405,6 +453,17 @@ function urls(repo) {
       else console.log(str + (findRule(rules, repo, branch) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
     });
   });
+  Object.keys(aliases).forEach(function(alias) {
+    var r = aliases[alias].repo;
+    if (!repo || r === repo) {
+      var branch = aliases[alias].branch;;
+      var status = repos[r][branch];
+        var str = 'http://' + alias + domain + (frontendPort ? ':' + frontendPort : '') +
+        ' --> ' + r + '-' + branch;
+      if (!status.pid) console.log(str + ' (Server down)'.red);
+      else console.log(str + (findRule(rules, r, branch) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
+    }
+  });
 }
 
 function url(repo, branch) {
@@ -419,28 +478,32 @@ function removeAlias(alias) {
   if (aliases[alias]) {
     delete aliases[alias];
     saveConfig();
+    console.log('Alias removed');
   }
-  var index = findRuleByValue(alias + domain);
+  else console.log('Alias not defined'); 
+  var index = findRuleByValue(frontend.rules, alias + domain);
   if (index > -1) {
     frontend.rules.splice(index, 1); 
     resolve(haproxy('putFrontend', ['demo', frontend]));
   }
 }
 
+function printAliases() {
+  var txt = Object.keys(aliases).map(function(alias) {
+    return alias +  " --> " + aliases[alias].repo + '-' + aliases[alias].branch;;
+  }).join('\n');
+  if (txt.length) console.log(txt);
+  else console.log('No aliases defined');
+}
+
 function setAlias(repo, branch, alias) {
-  aliases[alias]  = repo + '-' + branch;
-  saveConfig();
-  var index = findRule(frontend.rules, repo, branch);
-  if (index > -1) {
-    var rule = frontend.rules[index];
-    index = findRuleByValue(frontend.rules, alias + domain);
-    if (index > -1) {
-      frontend.rules[index].backend = repo + '-' + branch;
-    }
-    else frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch, alias));
-    
-    resolve(haproxy('putFrontend', ['demo', frontend]));
+  if (alias.indexOf('-') !== -1) {
+    console.log('Hyphens are reserved for repo-branch urls');
+    return;
   }
+  aliases[alias]  = { repo: repo,  branch: branch };
+  saveConfig();
+  console.log('Alias set');
 }
 
 function restart(repo, branch) {
@@ -565,26 +628,26 @@ function _do(operation, args) {
 
 var txt = [
   "Help:",
-  "create repo              : create a bare git repo on the server",
-  "delete repo [branch]     : delete repo or just a branch",
-  "urls [repo]              : list urls (or just for repo)",
-  "url repo branch          : print url for repo-branch",
-  "checkout repo branch     : access branch at repo-branch.domain.com",
-  "start repo branch        : start web server for branch",
-  "stop repo branch         : stop web server for branch",
-  "online repo branch       : take web server online for branch",
-  "offline repo branch      : take web server offline for branch",
-  "log repo branch          : print log of server in branch",
-  "exec repo branch         : execute command in branch folder",
-  "bind network:port        : set network:port of frontend proxy [*:8080]",
-  "default repo branch|port : set proxy to repo-branch or port [port 5000]",
-  "domain domain            : set frontend wildcard domain [demo.local]",
-  "range minPort maxPort    : set available port range [8000-9000]",
-  "alias alias [repo branch]: set/remove alias for repo-branch",
-  "info                     : print config and server status",
-  "haproxy                  : print haproxy configuration",
-  "v or version             : print version",
-  "h or help                : print this help text",
+  "create repo                : create a bare git repo on the server",
+  "delete repo [branch]       : delete repo or just a branch",
+  "urls [repo]                : list urls (or just for repo)",
+  "url repo branch            : print url for repo-branch",
+  "checkout repo branch       : access branch at repo-branch.domain.com",
+  "start repo branch          : start web server for branch",
+  "stop repo branch           : stop web server for branch",
+  "online repo branch         : take web server online for branch",
+  "offline repo branch        : take web server offline for branch",
+  "log repo branch            : print log of server in branch",
+  "exec repo branch           : execute command in branch folder",
+  "bind network  :port        : set network:port of frontend proxy [*:8080]",
+  "default repo branch|port   : set proxy to repo-branch or port [port 5000]",
+  "domain domain              : set frontend wildcard domain [demo.local]",
+  "range minPort maxPort      : set available port range [8000-9000]",
+  "alias [alias [repo branch]]: list, remove or set alias",
+  "info                       : print config and server status",
+  "haproxy                    : print haproxy configuration",
+  "v or version               : print version",
+  "h or help                  : print this help text",
   "\nTo add a remote to a repo:",
   "git remote add demo user@demo.com:repos/myrepo/bare",
   "\nServe app online at myrepo-branch.demo.com:",
@@ -612,15 +675,26 @@ var operations = {
       else _do('_default', args);
     },
     alias: function(args) {
-      if (args && args.length === 1) removeAlias(args[0]);
+      if (!args || !args.length) printAliases();
+      else if (args && args.length === 1) removeAlias(args[0]);
       else _do('setAlias', [args[1], args[2], args[0]]);
+    },
+    online: function(args) {
+      console.log(args);
+      
+      if (args && args.length === 1) onlineAlias(args[0]);
+      else _do('online', args);
+    },
+    offline: function(args) {
+      if (args && args.length === 1) offlineAlias(args[0]);
+      else _do('offline', args);
     },
     info: info,
     bind: bind,
     haproxy: haproxyInfo,
     checkout: true, url: true, delete: true,
     stop: true, start: true, restart: true,
-    exec: true, offline: true, online: true,
+    exec: true, 
     delete: true, log: true, default: true
   },
   internal: {
@@ -641,7 +715,7 @@ var operations = {
       log: log,
       exec: execInBranch,
       url: url,
-      alias: alias
+      setAlias: setAlias
     }
   }
 };
@@ -722,9 +796,12 @@ function syncHaproxy(frontends, backends, repos) {
       })
       .map(function(rule) {
         if (rule.value !== rule.backend + domain) {
+          
+          if (aliases[r])
           writeFrontend = true;
           rule.value = rule.backend + domain;
         }
+        
         return rule;
       });
   }
@@ -742,7 +819,19 @@ function syncHaproxy(frontends, backends, repos) {
     return createBackend(backend, b.port, b.pid);
   });
   debug('Sync\n', inspect(ops));
-  
+
+  var purgedAliases = {};
+  var writeConfig;
+  Object.keys(aliases).forEach(function(alias) {
+    var repo = aliases[alias].repo;
+    var branch = aliases[alias].branch;;
+    if (repos[repo] && repos[repo][branch]) {
+      purgedAliases[alias] = aliases[alias];
+      writeConfig = true;
+    }
+  });
+  aliases = purgedAliases;
+  if (writeConfig) saveConfig();
   // console.log('Frontends to delete\n', frontendsToDelete);
   // console.log('Backends to delete\n', backendsToDelete);
   // console.log('Backends to write\n', backendsToWrite);
