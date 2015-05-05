@@ -71,7 +71,7 @@ function findUnusedPort() {
 
 function createHaproxyRule(repo, branch, value) {
 
-  console.log(repo, branch, value);
+  debug(repo, branch, value);
   var backend = repo + '-' + branch;
   value = value || backend + domain;
   return {
@@ -197,7 +197,7 @@ function checkout(repo, branch) {
 
   var gitOperation = "git " + '--work-tree=' + workTree +
     " --git-dir=" + Path.join(REPOS, repo, 'bare') + " checkout " +  branch + " -f";
-  console.log(gitOperation);
+  debug(gitOperation);
   var pid, port;
   exec(gitOperation)
     .when(function() {
@@ -330,9 +330,8 @@ function _onlineAlias(alias, repo, branch, pid) {
     vow.keep('Already online..');
   }
   else {
-    console.log(repo, branch, alias, domain);
     frontend.rules = frontend.rules.concat(createHaproxyRule(repo, branch, alias + domain));
-    console.log(frontend.rules);
+    debug(frontend.rules);
     return haproxy('putFrontend', ['demo', frontend]);
   }
   return vow.promise;
@@ -396,7 +395,7 @@ function info() {
   var backend = backends[index];
   var defaultPort = backend ? (backend.members ? backend.members[0].port : '?') : '?'; 
   var txt = [
-    "Config:",
+    "Config:".underline,
     "domain: " + domain.slice(1),
     "bind: " + frontend.bind,
     "port range: " + MINPORT + '-' + MAXPORT,
@@ -405,15 +404,15 @@ function info() {
   ];
   console.log(txt.join('\n'));
 
-  console.log('Server status:');
+  console.log('\nServer status:'.underline);
   console.log(util.inspect(serverStatus, { depth: 10, colors: true }));
 
 }
 
 function haproxyInfo () {
-  console.log('Frontend:', inspect(frontend));
-  console.log('Backends:', inspect(backends));
-  console.log('Raw haproxy config file::');
+  console.log('Frontend:\n'.underline, inspect(frontend));
+  console.log('\nBackends:\n'.underline, inspect(backends));
+  console.log('\nRaw haproxy config file:'.underline);
   resolve(haproxy('getHaproxyConfig'));
 }
 
@@ -681,8 +680,6 @@ var operations = {
       else _do('setAlias', [args[1], args[2], args[0]]);
     },
     online: function(args) {
-      console.log(args);
-      
       if (args && args.length === 1) onlineAlias(args[0]);
       else _do('online', args);
     },
@@ -802,7 +799,6 @@ function syncHaproxy(frontends, backends, repos) {
   });
 
   aliases = purgedAliases;
-  console.log(frontend.rules);
   if (frontend) {
     if (frontend.backend !== defaultBackend.key &&
         !serverStatus.serversByKey[frontend.backend]) {
@@ -832,8 +828,6 @@ function syncHaproxy(frontends, backends, repos) {
     frontend =  { bind: defaultBind, backend: defaultBackend.key, rules: []  };
     writeFrontend = true;
   }
-
-  console.log(frontend.rules);
 
   var ops = { put: {}, delete: {}};
   if (frontendsToDelete.length) ops.delete.frontends = frontendsToDelete;
