@@ -740,6 +740,14 @@ function createBackend(key, port, pid) {
          };
 }
 
+function isValidAlias(rule) {
+  return Object.keys(aliases)
+    .filter(function(alias){
+      return alias + domain === rule.value &&
+        aliases[alias].rep + '-' + aliases[alias].branch === rule.backend;
+    }).length > 0;
+}
+
 function syncHaproxy(frontends, backends, repos) {
   var index;
   var frontendsToDelete =  [];
@@ -781,6 +789,19 @@ function syncHaproxy(frontends, backends, repos) {
       backendsToWrite.push(key);
     }
   });
+
+  var purgedAliases = {};
+  var writeConfig;
+  Object.keys(aliases).forEach(function(alias) {
+    var repo = aliases[alias].repo;
+    var branch = aliases[alias].branch;;
+    if (repos[repo] && repos[repo][branch]) 
+      purgedAliases[alias] = aliases[alias];
+    else writeConfig = true;
+  });
+
+  aliases = purgedAliases;
+
   if (frontend) {
     if (frontend.backend !== defaultBackend.key &&
         !serverStatus.serversByKey[frontend.backend]) {
@@ -796,10 +817,11 @@ function syncHaproxy(frontends, backends, repos) {
       })
       .map(function(rule) {
         if (rule.value !== rule.backend + domain) {
-          
-          if (aliases[r])
-          writeFrontend = true;
-          rule.value = rule.backend + domain;
+
+          if (!isValidAlias(rule)) {
+            writeFrontend = true;
+            rule.value = rule.backend + domain;
+          }  
         }
         
         return rule;
@@ -820,17 +842,6 @@ function syncHaproxy(frontends, backends, repos) {
   });
   debug('Sync\n', inspect(ops));
 
-  var purgedAliases = {};
-  var writeConfig;
-  Object.keys(aliases).forEach(function(alias) {
-    var repo = aliases[alias].repo;
-    var branch = aliases[alias].branch;;
-    if (repos[repo] && repos[repo][branch]) {
-      purgedAliases[alias] = aliases[alias];
-      writeConfig = true;
-    }
-  });
-  aliases = purgedAliases;
   if (writeConfig) saveConfig();
   // console.log('Frontends to delete\n', frontendsToDelete);
   // console.log('Backends to delete\n', backendsToDelete);
