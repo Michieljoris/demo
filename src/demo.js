@@ -458,10 +458,11 @@ function urls(repo) {
     if (!repo || r === repo) {
       var branch = aliases[alias].branch;;
       var status = repos[r][branch];
+      var backend = r + '-' + branch;
         var str = 'http://' + alias + domain + (frontendPort ? ':' + frontendPort : '') +
-        ' --> ' + r + '-' + branch;
+        ' --> ' + backend;
       if (!status.pid) console.log(str + ' (Server down)'.red);
-      else console.log(str + (findRule(rules, r, branch) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
+      else console.log(str + (findRuleByValue(rules, alias + domain) !== -1 ? ' (online)'.green : ' (offline)'.yellow));
     }
   });
 }
@@ -744,7 +745,7 @@ function isValidAlias(rule) {
   return Object.keys(aliases)
     .filter(function(alias){
       return alias + domain === rule.value &&
-        aliases[alias].rep + '-' + aliases[alias].branch === rule.backend;
+        aliases[alias].repo + '-' + aliases[alias].branch === rule.backend;
     }).length > 0;
 }
 
@@ -789,7 +790,7 @@ function syncHaproxy(frontends, backends, repos) {
       backendsToWrite.push(key);
     }
   });
-
+  
   var purgedAliases = {};
   var writeConfig;
   Object.keys(aliases).forEach(function(alias) {
@@ -801,7 +802,7 @@ function syncHaproxy(frontends, backends, repos) {
   });
 
   aliases = purgedAliases;
-
+  console.log(frontend.rules);
   if (frontend) {
     if (frontend.backend !== defaultBackend.key &&
         !serverStatus.serversByKey[frontend.backend]) {
@@ -831,6 +832,8 @@ function syncHaproxy(frontends, backends, repos) {
     frontend =  { bind: defaultBind, backend: defaultBackend.key, rules: []  };
     writeFrontend = true;
   }
+
+  console.log(frontend.rules);
 
   var ops = { put: {}, delete: {}};
   if (frontendsToDelete.length) ops.delete.frontends = frontendsToDelete;
