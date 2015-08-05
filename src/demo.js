@@ -103,22 +103,51 @@ function createHaproxyRule(repo, branch, value) {
 //   }];
 // }
 
-function startProcess(path, command) {
+function resetDb(repo, branch) {
+  var dbName = repo + '_' + branch;
+  //replace chin_minimal strings in chin_minimal.sql with dbName
+  //mysql -u root -pmypwd < chin_minimal
+  //do DATABASE_URL=mysql2://root:mypwd@localhost/<dbName>; rake db:migrate
+
+
+// DATABASE_URL=mysql2://root:mypwd@localhost/REPO_BRANCH; rails s -p PORT -e demo
+
+  
+
+}
+
+function startProcess(path, command, env) {
+  env = extend(env || {}, process.env);
+  var envVars = command.split(';');
+  command = envVars.pop();
+  if (envVars.length > 0) {
+    envVars.forEach(function(prop) {
+      var parts = prop.split('=');
+      env[parts[0]] = parts[1];
+    });
+  }
   var out = fs.openSync(path + '/out.log', 'a');
   var err = fs.openSync(path + '/out.log', 'a');
   command = command.split(' ');
   var c = command[0];
   var args = command.slice(1);
-  var child = spawn(c, args, {
-    cwd: path,
-    detached: true,
-    stdio: [ 'ignore', out, err ]
-  });
-  child.unref();
-
-  console.log("Started server, pid is", child.pid);
+  try {
+    var child = spawn(c, args, {
+      cwd: path,
+      detached: true,
+      env: env,
+      stdio: [ 'ignore', out, err ]
+    });
+    child.unref();
+  } catch(e) { console.log('Error:', e); }
+  if (child.pid) console.log("Started process, pid is", child.pid);
+  else console.log('Oops, something went wrong');
   return child.pid;
 }
+// startProcess('/home/michieljoris/tmp',
+//              // "DATABASE_URL=mysql2://root:mypwd@localhost/REPO_BRANCH;./testdemo");
+//              "/home/michieljoris/tmp/reset_repo.sh foo bar");
+//              // "MYVAR=REPO_BRANCH;./testdemo");
 
 function startServer(repo, branch, port, restartAlways) {
   var demoJson = getDemoJson(repo, branch);
@@ -128,6 +157,9 @@ function startServer(repo, branch, port, restartAlways) {
   var status = repos[repo][branch];
   var branchPath = Path.join(REPOS, repo, 'branches', branch);
   var startCommand = demoJson.start.replace('PORT', port);
+  startCommand = startCommand.replace('REPO', repo);
+  startCommand = startCommand.replace('BRANCH', branch);
+  
   if (status && status.pid) {
     if (demoJson.restartOnCheckout || restartAlways) {
       exec('kill ' + status.pid).when(
@@ -506,6 +538,20 @@ function setAlias(repo, branch, alias) {
   console.log('Alias set');
 }
 
+function init(repo, branch) {
+  var demoJson = getDemoJson(repo, branch);
+  if (!demoJson) {
+    console.log('Could not find demo.json, so don\'t know how to start the server..');
+    return;
+  }
+  var init = demoJson.init;
+  if (!demoJson.init) {
+    console.log('No init prop in demo.json');
+    return;
+  }
+  startProcess(process.env.HOME, demoJson.init + ' ' + repo + ' ' + branch);
+}
+
 function restart(repo, branch) {
   var port = findUnusedPort();
   startServer(repo, branch, port, 'restartAlways').when(
@@ -532,6 +578,8 @@ function start(repo, branch) {
   var branchPath = Path.join(REPOS, repo, 'branches', branch);
   var port = findUnusedPort();
   var startCommand = demoJson.start.replace('PORT', port);
+  startCommand = startCommand.replace('REPO', repo);
+  startCommand = startCommand.replace('BRANCH', branch);
   var pid = startProcess(branchPath, startCommand);
   resolve(haproxy('putBackend', [repo + '-' + branch,
                                  { members: [{ host: '127.0.0.1', port: port, meta: { pid: pid }}] }
@@ -646,6 +694,7 @@ var txt = [
   "alias [alias [repo branch]]: list, remove or set alias",
   "info                       : print config and server status",
   "haproxy                    : print haproxy configuration",
+  "init                       : execute [demo.json].init repo branch",
   "v or version               : print version",
   "h or help                  : print this help text",
   "\nTo add a remote to a repo:",
@@ -693,7 +742,8 @@ var operations = {
     checkout: true, url: true, delete: true,
     stop: true, start: true, restart: true,
     exec: true, 
-    delete: true, log: true, default: true
+    delete: true, log: true, default: true,
+    init: true
   },
   internal: {
     repos: {
@@ -713,7 +763,8 @@ var operations = {
       log: log,
       exec: execInBranch,
       url: url,
-      setAlias: setAlias
+      setAlias: setAlias,
+      init: init
     }
   }
 };
@@ -941,6 +992,7 @@ module.exports = function(operation, args) {
 // module.exports('haproxy');
 // module.exports('alias', ['foo', 'foo-1', 'foo-alias']);
 // module.exports('range', ["a0000", "9000"] );
+// module.exports('init', ["foo", "b2"] );
 
 
 // module.exports('stop', ['foo', 'master']);//, ['127.0.0.1:7609']);

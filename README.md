@@ -181,6 +181,16 @@ there are enough ports available within the range for all your branches.
 
 Get info on internal config and data structures with info and haproxy.
 
+    demo.json: { init:'filename', start: 'start command' }
+
+Start can be "foo=bla;bar=ba;start-server' and foo and bar are set as
+env vars.
+
+demo init foo bar will execute file name in demojson.init relative to
+home dir, and pass repo and branch to it.
+
+# Inner workings
+
 How it all works is that the demo utility on every invocation finds the pids of
 all servers withing a certain range.It then looks for the current working
 directory of all those pids. The ones that match a
