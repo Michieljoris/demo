@@ -1,0 +1,5 @@
+{
+    "init": "./reset_repo.sh",
+    "start": "DATABASE_URL=mysql2://root:mypwd@localhost/REPO_BRANCH;rails s -p PORT -e development"
+
+}
