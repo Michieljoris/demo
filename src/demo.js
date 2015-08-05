@@ -116,7 +116,7 @@ function resetDb(repo, branch) {
 
 }
 
-function startProcess(path, command, env) {
+function startProcess(path, command, env, inherit) {
   env = extend(env || {}, process.env);
   var envVars = command.split(';');
   command = envVars.pop();
@@ -136,7 +136,7 @@ function startProcess(path, command, env) {
       cwd: path,
       detached: true,
       env: env,
-      stdio: [ 'ignore', out, err ]
+      stdio: inherit ? 'inherit': [ 'ignore', out, err ]
     });
     child.unref();
   } catch(e) { console.log('Error:', e); }
@@ -144,7 +144,7 @@ function startProcess(path, command, env) {
   else console.log('Oops, something went wrong');
   return child.pid;
 }
-// startProcess('/home/michieljoris/tmp',
+// startProcess('/home/michieljoris/tmp', "ls", {}, true);
 //              // "DATABASE_URL=mysql2://root:mypwd@localhost/REPO_BRANCH;./testdemo");
 //              "/home/michieljoris/tmp/reset_repo.sh foo bar");
 //              // "MYVAR=REPO_BRANCH;./testdemo");
@@ -549,7 +549,7 @@ function init(repo, branch) {
     console.log('No init prop in demo.json');
     return;
   }
-  startProcess(process.env.HOME, demoJson.init + ' ' + repo + ' ' + branch);
+  startProcess(process.env.HOME, demoJson.init + ' ' + repo + ' ' + branch, {}, 'to console');
 }
 
 function restart(repo, branch) {
