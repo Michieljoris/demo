@@ -109,30 +109,32 @@ You can manage the server with the demo utility you installed on the server.
 Calling it without arguments  will output this:
 
     Help:
-    create repo              : create a bare git repo on the server
-    delete repo [branch]     : delete repo or just a branch
-    urls [repo]              : list urls (or just for repo)
-    url repo branch          : print url for repo-branch
-    checkout repo branch     : access branch at repo-branch.domain.com
-    start repo branch        : start web server for branch
-    stop repo branch         : stop web server for branch
-    online repo branch       : put web server online for branch
-    offline repo branch      : take web server offline for branch
-    log repo branch          : print log of server in branch
-    exec repo branch         : execute command in branch folder
-    bind network:port        : set network:port of frontend proxy [*:8080]
-    default repo branch|port : set proxy to repo-branch or port [5000]
-    domain domain            : set frontend wildcard domain [demo.local]
-    range minPort maxPort    : set available port range [8000-9000]
-    info                     : print config and server status
-    haproxy                  : print haproxy configuration
-    v or version             : print version
-    h or help                : print this help text
+    create repo                : create a bare git repo on the server
+    delete repo [branch]       : delete repo or just a branch
+    urls [repo]                : list urls (or just for repo)
+    url repo branch            : print url for repo-branch
+    checkout repo branch       : access branch at repo-branch.domain.com
+    start repo branch          : start web server for branch
+    stop repo branch           : stop web server for branch
+    online repo branch         : take web server online for branch
+    offline repo branch        : take web server offline for branch
+    log repo branch            : print log of server in branch
+    exec repo branch           : execute command in branch folder
+    bind network  :port        : set network:port of frontend proxy [*:8080]
+    default repo branch|port   : set proxy to repo-branch or port [port 5000]
+    domain domain              : set frontend wildcard domain [demo.local]
+    range minPort maxPort      : set available port range [8000-9000]
+    alias [alias [repo branch]]: list, remove or set alias
+    info                       : print config and server status
+    haproxy                    : print haproxy configuration
+    init                       : execute [demo.json].init repo branch
+    v or version               : print version
+    h or help                  : print this help text
 
     To add a remote to a repo:
     git remote add demo user@demo.com:repos/myrepo/bare
 
-    Serve app online at myrepo-branch.domain.com:
+    Serve app online at myrepo-branch.demo.com:
     git push demo branch
 
 online/offline basically add/remove an rule in the frontend section of the
