@@ -157,7 +157,7 @@ function startServer(repo, branch, port, restartAlways) {
   var status = repos[repo][branch];
   var branchPath = Path.join(REPOS, repo, 'branches', branch);
   var startCommand = demoJson.start.replace('PORT', port);
-  startCommand = startCommand.replace('REPO', repo);
+  startCommand = startCommand.replace('REPO', repo(0,64));
   startCommand = startCommand.replace('BRANCH', branch);
   
   if (status && status.pid) {
@@ -539,6 +539,7 @@ function setAlias(repo, branch, alias) {
 }
 
 function init(repo, branch) {
+  repo = repo.slice(0, 64);
   var demoJson = getDemoJson(repo, branch);
   if (!demoJson) {
     console.log('Could not find demo.json, so don\'t know how to start the server..');
@@ -578,7 +579,7 @@ function start(repo, branch) {
   var branchPath = Path.join(REPOS, repo, 'branches', branch);
   var port = findUnusedPort();
   var startCommand = demoJson.start.replace('PORT', port);
-  startCommand = startCommand.replace('REPO', repo);
+  startCommand = startCommand.replace('REPO', repo.slice(0,64));
   startCommand = startCommand.replace('BRANCH', branch);
   var pid = startProcess(branchPath, startCommand);
   resolve(haproxy('putBackend', [repo + '-' + branch,
@@ -1000,3 +1001,6 @@ module.exports = function(operation, args) {
 
 
 // resolve(haproxy('getBackend', 'default'));
+
+// var a = 'chin_show-remarks-violations-popup-above-link-at-bottom-of-page-887';
+// console.log(a.slice(0,64).length);
