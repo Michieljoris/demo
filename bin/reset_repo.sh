@@ -2,7 +2,7 @@
 pwd
 REPO=$1
 BRANCH=$2
-DB=$REPO"_"$BRANCH
+DB=$3
 echo 'Resetting '$DB
 echo 'Preparing sql dump file'
 sed  "s/chin_minimal/$DB/g" < ~/chin_minimal.sql  >~/db.sql

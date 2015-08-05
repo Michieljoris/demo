@@ -544,9 +544,7 @@ function setAlias(repo, branch, alias) {
 
 function init(repo, branch) {
   var dbName = repo + '_' + branch;
-  if (dbName.length > 64) {
-    branch = branch.slice(0, branch.length - dbName.length-64);
-  }
+  dbName = dbName.slice(0, 64);
   var demoJson = getDemoJson(repo, branch);
   if (!demoJson) {
     console.log('Could not find demo.json, so don\'t know how to start the server..');
@@ -557,7 +555,7 @@ function init(repo, branch) {
     console.log('No init prop in demo.json');
     return;
   }
-  startProcess(process.env.HOME, demoJson.init + ' ' + repo + ' ' + branch, {}, 'to console');
+  startProcess(process.env.HOME, demoJson.init + ' ' + repo + ' ' + branch + ' ' + dbName, {}, 'to console');
 }
 
 function restart(repo, branch) {
