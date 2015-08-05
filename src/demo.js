@@ -103,18 +103,6 @@ function createHaproxyRule(repo, branch, value) {
 //   }];
 // }
 
-function resetDb(repo, branch) {
-  var dbName = repo + '_' + branch;
-  //replace chin_minimal strings in chin_minimal.sql with dbName
-  //mysql -u root -pmypwd < chin_minimal
-  //do DATABASE_URL=mysql2://root:mypwd@localhost/<dbName>; rake db:migrate
-
-
-// DATABASE_URL=mysql2://root:mypwd@localhost/REPO_BRANCH; rails s -p PORT -e demo
-
-  
-
-}
 
 function startProcess(path, command, env, inherit) {
   env = extend(env || {}, process.env);
@@ -159,7 +147,7 @@ function startServer(repo, branch, port, restartAlways) {
   var startCommand = demoJson.start.replace('PORT', port);
   var dbName = repo + '_' + branch;
   if (dbName.length > 64) {
-    branch = branch.slice(0, branch.length - dbName.length-64);
+    branch = branch.slice(0, branch.length - (dbName.length-64));
   }
   startCommand = startCommand.replace('REPO', repo);
   startCommand = startCommand.replace('BRANCH', branch);
@@ -586,7 +574,7 @@ function start(repo, branch) {
   var startCommand = demoJson.start.replace('PORT', port);
   var dbName = repo + '_' + branch;
   if (dbName.length > 64) {
-    branch = branch.slice(0, branch.length - dbName.length-64);
+    branch = branch.slice(0, branch.length - (dbName.length-64));
   }
   startCommand = startCommand.replace('REPO', repo);
   startCommand = startCommand.replace('BRANCH', branch);
